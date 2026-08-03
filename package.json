@@ -1,0 +1,78 @@
+{
+  "name": "feedback-agent",
+  "version": "0.1.0",
+  "description": "In-app feedback with first-party session capture and Cursor cloud agent dispatch.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ericzakariasson/feedback-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ericzakariasson/feedback-agent/issues"
+  },
+  "homepage": "https://github.com/ericzakariasson/feedback-agent#readme",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "example": "npm run build && npm install --prefix examples/local && npm run start --prefix examples/local"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@rrweb/record": "^2.1.1",
+    "html-to-image": "^1.11.13",
+    "rrweb": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.18"
+  },
+  "keywords": [
+    "feedback",
+    "agent",
+    "session-replay",
+    "cursor",
+    "react",
+    "hono"
+  ]
+}

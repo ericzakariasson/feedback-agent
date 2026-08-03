@@ -1,0 +1,155 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap");
+
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background: #ffffff;
+  color: #000000;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  background: #000000;
+  color: #ffffff;
+}
+
+body {
+  margin: 0;
+}
+
+.banner {
+  margin: 0;
+  padding: 10px 20px;
+  font: 400 13px/1.45 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+}
+
+.nav a {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: 500 14px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.nav a.active {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.nav-spacer {
+  flex: 1;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 20px 96px;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+h1, h2 { margin: 0 0 8px; letter-spacing: -0.02em; }
+.lede, .muted { opacity: 0.72; line-height: 1.5; }
+
+.card {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 10px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+input, textarea {
+  font: inherit;
+  color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: transparent;
+}
+
+.app button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #000000;
+  color: #ffffff;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 130ms cubic-bezier(0.23, 1, 0.32, 1), background-color 140ms ease;
+}
+
+:root[data-theme="dark"] .app button:not(.secondary) {
+  background: #ffffff;
+  color: #000000;
+}
+
+.app button.secondary {
+  background: transparent;
+  color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.app button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.app button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.app button:focus-visible,
+.nav a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app button:not(.secondary):hover:not(:disabled) {
+    background: color-mix(in srgb, #000000 88%, #ffffff);
+  }
+  :root[data-theme="dark"] .app button:not(.secondary):hover:not(:disabled) {
+    background: color-mix(in srgb, #ffffff 88%, #000000);
+  }
+  .app button.secondary:hover:not(:disabled),
+  .nav a:hover {
+    background: color-mix(in srgb, currentColor 6%, transparent);
+  }
+}
+
+code {
+  font: 500 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
