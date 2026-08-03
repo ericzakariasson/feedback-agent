@@ -646,6 +646,28 @@ npm test
 npm run typecheck
 ```
 
+### Publishing
+
+CI publishes to npm when a `v*` tag is pushed. Authentication uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC) — no `NPM_TOKEN` secret.
+
+**One-time setup** (after this workflow is on `main`):
+
+1. Open [feedback-agent on npm](https://www.npmjs.com/package/feedback-agent) → **Settings** → **Trusted Publisher**
+2. Provider: **GitHub Actions**
+3. Organization or user: `ericzakariasson`
+4. Repository: `feedback-agent`
+5. Workflow filename: `publish.yml`
+6. Allowed actions: `npm publish`
+
+**Cut a release:**
+
+```bash
+npm version patch   # or minor / major
+git push origin main --follow-tags
+```
+
+The tag must match `package.json` (`v0.1.1` ↔ `"version": "0.1.1"`).
+
 ---
 
 ## License
