@@ -1,9 +1,24 @@
-import type { EnrichInput, EnrichResult, SessionBundle } from "../shared/types";
+import type {
+  EnrichInput,
+  EnrichResult,
+  FeedbackPayload,
+  ScreenshotPayload,
+  SessionBundle,
+} from "../shared/types";
 import type { DEFAULT_LIMITS } from "../shared/limits";
 
 export interface FeedbackRepo {
   url: string
   ref?: string
+}
+
+export interface PromptInput {
+  feedbackId: string
+  message: string
+  submittedAt: string
+  session: SessionBundle
+  enrichment?: Record<string, unknown>
+  defaultPrompt: string
 }
 
 export interface FeedbackHandlerLimits {
@@ -20,6 +35,8 @@ export interface CreateFeedbackHandlerOptions {
   cursorApiKey: string
   repo: FeedbackRepo
   enrich: (input: EnrichInput) => Promise<EnrichResult> | EnrichResult
+  /** Wrap or replace the default Cursor prompt. Runs after `enrich`. */
+  prompt?: (input: PromptInput) => string | Promise<string>
   model?: string
   agentName?: string
   dryRun?: boolean
@@ -38,4 +55,10 @@ export interface DispatchResult {
   runId?: string
 }
 
-export type { EnrichInput, EnrichResult, SessionBundle };
+export type {
+  EnrichInput,
+  EnrichResult,
+  FeedbackPayload,
+  ScreenshotPayload,
+  SessionBundle,
+};

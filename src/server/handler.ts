@@ -86,11 +86,40 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
 
     const context =
       enrichResult && "context" in enrichResult ? enrichResult.context : undefined;
-    const prompt = buildAgentPrompt({
+    const defaultPrompt = buildAgentPrompt({
       feedbackId: payload.eventId,
       payload,
       enrichment: context,
     });
+
+    let promptText = defaultPrompt;
+    if (options.prompt) {
+      try {
+        promptText = await options.prompt({
+          feedbackId: payload.eventId,
+          message: payload.message,
+          submittedAt: payload.submittedAt,
+          session: payload.session,
+          enrichment: context,
+          defaultPrompt,
+        });
+      } catch (error) {
+        return json(
+          {
+            ok: false,
+            error: error instanceof Error ? error.message : "prompt failed",
+          },
+          500,
+        );
+      }
+    }
+
+    if (typeof promptText !== "string" || !promptText.trim()) {
+      return json({ ok: false, error: "prompt is empty" }, 500);
+    }
+    if (promptText.length > limits.maxPromptChars) {
+      promptText = promptText.slice(0, limits.maxPromptChars);
+    }
 
     if (options.dryRun) {
       const result: FeedbackHandlerSuccess = {
@@ -107,7 +136,7 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
       const dispatched = await dispatchCloudAgent({
         apiKey: options.cursorApiKey,
         apiBaseUrl,
-        prompt,
+        prompt: promptText,
         screenshots: payload.screenshots,
         repoUrl: options.repo.url,
         repoRef: options.repo.ref,

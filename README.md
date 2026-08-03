@@ -241,6 +241,7 @@ Web `Request` / `Response` only. Works on Next.js, Hono, Cloudflare Workers, and
 | `repo.url` | `string` | GitHub repo URL |
 | `repo.ref` | `string` | starting ref, e.g. `"main"` |
 | `enrich` | `(input: EnrichInput) => EnrichResult \| Promise<EnrichResult>` | required |
+| `prompt` | `(input: PromptInput) => string \| Promise<string>` | wrap or assemble the Cursor prompt |
 | `model` | `string` | Cursor model id |
 | `agentName` | `string` | default `Feedback <short-id>` |
 | `dryRun` | `boolean` | validate + enrich, do not call Cursor |
@@ -290,6 +291,45 @@ Thrown errors become `500` with `error` from the exception message — don't lea
 
 `context` is summarized into the agent prompt (redacted, size-capped). It is **not** instructions and must **not** be committed into the repo.
 
+### Prompt
+
+`prompt` runs after `enrich`. You get the report pieces plus `defaultPrompt` (the built-in template). Wrap it or assemble your own.
+
+```ts
+import { createFeedbackHandler } from "feedback-agent/server";
+
+createFeedbackHandler({
+  cursorApiKey: process.env.CURSOR_API_KEY!,
+  repo: { url: "https://github.com/acme/app", ref: "main" },
+  async enrich({ request }) {
+    const user = await getCurrentUser(request);
+    if (!user) return { dispatch: false, reason: "unauthenticated" };
+    return { context: { user: { id: user.id, plan: user.plan } } };
+  },
+  prompt({ message, session, enrichment, defaultPrompt }) {
+    return `${defaultPrompt}
+
+## App notes
+- Plan is in enrichment.user.plan.
+- Path: ${session.href}
+- Message preview: ${message.slice(0, 120)}`;
+  },
+});
+```
+
+```ts
+type PromptInput = {
+  feedbackId: string
+  message: string
+  submittedAt: string
+  session: SessionBundle
+  enrichment?: Record<string, unknown>
+  defaultPrompt: string
+}
+```
+
+Images are attached to the agent run automatically — they are not passed into `prompt`. `buildAgentPrompt` is exported if you want the stock template as a building block. Final text is capped at `maxPromptChars` (250k).
+
 ### Responses
 
 Success bodies:
@@ -314,7 +354,7 @@ type FeedbackHandlerSuccess = {
 | `405` | not `POST` |
 | `413` | body too large |
 | `429` | rate limited |
-| `500` | `enrich` threw |
+| `500` | `enrich` / `prompt` threw, or prompt is empty |
 | `502` | Cursor API failed |
 
 `feedbackId` is the client `eventId`. Show it in the thanks state (the default widget does).
@@ -464,7 +504,7 @@ Hook equivalent: `getDebugContext({ includeReplayEvents?: boolean })`.
 
 ## Agent prompt
 
-The handler sends this prompt text (plus screenshot images) to `POST /v1/agents`. Values are filled at dispatch time; message and enrichment are redacted and size-capped first. Replay is a readable timeline of **all** received rrweb events (DOM snapshots as an outline, not raw JSON). If the full prompt exceeds 250,000 characters the replay tail is trimmed.
+Default text sent to `POST /v1/agents` (plus screenshot images). Override with `prompt` — see [Prompt](#prompt). Values are filled at dispatch time; message and enrichment are redacted and size-capped first. Replay is a readable timeline of **all** received rrweb events (DOM snapshots as an outline, not raw JSON). If the full prompt exceeds 250,000 characters the replay tail is trimmed.
 
 ```
 You are investigating in-app user feedback against this repository.
