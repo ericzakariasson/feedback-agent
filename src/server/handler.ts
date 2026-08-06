@@ -4,9 +4,9 @@ import type {
   FeedbackHandlerSuccess,
 } from "../shared/types";
 import { dispatchCloudAgent } from "./cursor";
-import { SlidingWindowLimiter, TtlMap } from "./memory";
+import { MemoryFeedbackStore } from "./memory";
 import { agentDisplayName, buildAgentPrompt } from "./prompt";
-import type { CreateFeedbackHandlerOptions } from "./types";
+import type { CreateFeedbackHandlerOptions, FeedbackHandlerEventName } from "./types";
 import { clientKey, readJsonBody, resolveLimits, validatePayload } from "./validate";
 
 export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
@@ -20,33 +20,47 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
     throw new Error("createFeedbackHandler requires an enrich function");
   }
 
-  const limits = resolveLimits({
-    ...DEFAULT_LIMITS,
-    ...options.limits,
-    rateLimitMax: options.limits?.rateLimitMax ?? DEFAULT_LIMITS.rateLimitMax,
-    rateLimitWindowMs: options.limits?.rateLimitWindowMs ?? DEFAULT_LIMITS.rateLimitWindowMs,
-  });
-  const limiter = new SlidingWindowLimiter(limits.rateLimitMax, limits.rateLimitWindowMs);
-  const seen = new TtlMap<FeedbackHandlerSuccess>(limits.dedupeWindowMs);
+  const limits = resolveLimits(options.limits);
+  const store = options.store ?? new MemoryFeedbackStore();
   const apiBaseUrl = options.cursorApiBaseUrl ?? "https://api.cursor.com";
+  const trustProxy = options.trustProxy ?? false;
+  const autoCreatePR = options.autoCreatePR ?? true;
+
+  const emit = (name: FeedbackHandlerEventName, data: Record<string, unknown> = {}) => {
+    try {
+      options.onEvent?.(name, data);
+    } catch {
+      /* host observability must not break dispatch */
+    }
+  };
 
   return async function feedbackHandler(request: Request): Promise<Response> {
     if (request.method !== "POST") {
       return json({ ok: false, error: "Method not allowed" }, 405);
     }
 
-    const key = clientKey(request);
-    if (!limiter.check(key)) {
+    const key = clientKey(request, trustProxy);
+    if (!(await store.checkRateLimit(key, {
+      max: limits.rateLimitMax,
+      windowMs: limits.rateLimitWindowMs,
+    }))) {
+      emit("rate_limited", { key });
       return json({ ok: false, error: "Too many feedback reports. Try again later." }, 429);
     }
 
     const body = await readJsonBody(request, limits.maxBodyBytes);
-    if (!body.ok) return json({ ok: false, error: body.error }, body.status);
+    if (!body.ok) {
+      if (body.status === 400 || body.status === 413) emit("invalid", { error: body.error });
+      return json({ ok: false, error: body.error }, body.status);
+    }
 
     const parsed = validatePayload(body.value, limits);
-    if (!parsed.ok) return json({ ok: false, error: parsed.error }, 400);
+    if (!parsed.ok) {
+      emit("invalid", { error: parsed.error });
+      return json({ ok: false, error: parsed.error }, 400);
+    }
 
-    const existing = seen.get(parsed.payload.eventId);
+    const existing = await store.getDedupe(parsed.payload.eventId);
     if (existing) return json(existing, 200);
 
     const { payload } = parsed;
@@ -64,13 +78,8 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
         session: payload.session,
       });
     } catch (error) {
-      return json(
-        {
-          ok: false,
-          error: error instanceof Error ? error.message : "enrich failed",
-        },
-        500,
-      );
+      options.onError?.(error, { stage: "enrich" });
+      return json({ ok: false, error: "Internal error" }, 500);
     }
 
     if (enrichResult && "dispatch" in enrichResult && enrichResult.dispatch === false) {
@@ -80,7 +89,8 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
         feedbackId: payload.eventId,
         reason: enrichResult.reason,
       };
-      seen.set(payload.eventId, result);
+      emit("skipped", { feedbackId: payload.eventId, reason: enrichResult.reason });
+      await store.setDedupe(payload.eventId, result, limits.dedupeWindowMs);
       return json(result, 202);
     }
 
@@ -90,6 +100,7 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
       feedbackId: payload.eventId,
       payload,
       enrichment: context,
+      limits,
     });
 
     let promptText = defaultPrompt;
@@ -104,22 +115,25 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
           defaultPrompt,
         });
       } catch (error) {
-        return json(
-          {
-            ok: false,
-            error: error instanceof Error ? error.message : "prompt failed",
-          },
-          500,
-        );
+        options.onError?.(error, { stage: "prompt" });
+        return json({ ok: false, error: "Internal error" }, 500);
       }
     }
 
     if (typeof promptText !== "string" || !promptText.trim()) {
-      return json({ ok: false, error: "prompt is empty" }, 500);
+      return json({ ok: false, error: "Internal error" }, 500);
     }
     if (promptText.length > limits.maxPromptChars) {
       promptText = promptText.slice(0, limits.maxPromptChars);
     }
+
+    try {
+      await options.onAccepted?.({ payload, enrichment: context });
+    } catch (error) {
+      options.onError?.(error, { stage: "accepted" });
+      return json({ ok: false, error: "Internal error" }, 500);
+    }
+    emit("accepted", { feedbackId: payload.eventId });
 
     if (options.dryRun) {
       const result: FeedbackHandlerSuccess = {
@@ -128,13 +142,14 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
         dryRun: true,
         feedbackId: payload.eventId,
       };
-      seen.set(payload.eventId, result);
+      emit("dry_run", { feedbackId: payload.eventId });
+      await store.setDedupe(payload.eventId, result, limits.dedupeWindowMs);
       return json(result, 202);
     }
 
     try {
       const dispatched = await dispatchCloudAgent({
-        apiKey: options.cursorApiKey,
+        apiKey: options.cursorApiKey!,
         apiBaseUrl,
         prompt: promptText,
         screenshots: payload.screenshots,
@@ -143,6 +158,7 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
         model: options.model,
         name: options.agentName ?? agentDisplayName(payload.eventId),
         skipReviewerRequest: options.skipReviewerRequest,
+        autoCreatePR,
       });
       const result: FeedbackHandlerSuccess = {
         ok: true,
@@ -151,16 +167,16 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
         agentId: dispatched.agentId,
         agentUrl: dispatched.agentUrl,
       };
-      seen.set(payload.eventId, result);
+      emit("dispatched", {
+        feedbackId: payload.eventId,
+        agentId: dispatched.agentId,
+      });
+      await store.setDedupe(payload.eventId, result, limits.dedupeWindowMs);
       return json(result, 202);
     } catch (error) {
-      return json(
-        {
-          ok: false,
-          error: error instanceof Error ? error.message : "Failed to dispatch cloud agent",
-        },
-        502,
-      );
+      options.onError?.(error, { stage: "dispatch" });
+      emit("upstream_failed", { feedbackId: payload.eventId });
+      return json({ ok: false, error: "Upstream dispatch failed" }, 502);
     }
   };
 }

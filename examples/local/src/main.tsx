@@ -6,9 +6,9 @@ import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <FeedbackProvider endpoint="/api/feedback" appVersion="example-0.1.0">
+    <FeedbackProvider endpoint="/api/feedback" appVersion="example-0.3.0">
       <App />
-      <FeedbackWidget thanksBody="Dry-run accepted this report locally. No coding agent was launched." />
+      <FeedbackWidget />
     </FeedbackProvider>
   </StrictMode>,
 );

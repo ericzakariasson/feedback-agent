@@ -16,7 +16,10 @@ import { useHostColorScheme } from "./host-scheme";
 import { useFeedback } from "./hook";
 import { ReplayPlayer } from "./replay-player";
 import { ensureWidgetStyles } from "./styles";
-import type { FeedbackWidgetProps } from "./types";
+import type { FeedbackSubmitResult, FeedbackWidgetProps } from "./types";
+
+const DEFAULT_THANKS_BODY =
+  "If the issue is clear, a coding agent will open a pull request.";
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -70,7 +73,7 @@ export function FeedbackWidget({
   triggerLabel = "Feedback",
   submitLabel = "Send",
   thanksTitle = "Thanks, we got it",
-  thanksBody = "If the issue is clear, a coding agent will open a pull request.",
+  thanksBody = DEFAULT_THANKS_BODY,
   debug,
   className,
   classNames,
@@ -90,6 +93,7 @@ export function FeedbackWidget({
     status,
     error,
     feedbackId,
+    result,
     submit,
     reset,
   } = useFeedback();
@@ -253,6 +257,13 @@ export function FeedbackWidget({
   }, [isOpen, entered, close]);
 
   useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (preview) panel.setAttribute("inert", "");
+    else panel.removeAttribute("inert");
+  }, [preview, present, inspecting, status]);
+
+  useEffect(() => {
     if (!isOpen || !entered) return;
     if (preview) {
       lightboxCloseRef.current?.focus();
@@ -330,7 +341,7 @@ export function FeedbackWidget({
           <section
             ref={panelRef}
             role="dialog"
-            aria-modal="true"
+            aria-modal={preview ? undefined : "true"}
             aria-labelledby={titleId}
             aria-describedby={status === "success" || inspecting ? undefined : subtitleId}
             aria-hidden={preview ? true : undefined}
@@ -527,7 +538,7 @@ export function FeedbackWidget({
                     </button>
                   </div>
                   <div className="fw-thanks-copy">
-                    <p>{thanksBody}</p>
+                    <p>{resolveThanksBody(thanksBody, result)}</p>
                     <p className="fw-id">{feedbackId ? `Reference: ${feedbackId}` : "\u00a0"}</p>
                   </div>
                   <div className="fw-footer">
@@ -603,6 +614,20 @@ export function FeedbackWidget({
       data-fw-open={overlayOpen ? "true" : "false"}
     />
   );
+}
+
+function resolveThanksBody(
+  thanksBody: string,
+  result: FeedbackSubmitResult | null,
+): string {
+  if (thanksBody !== DEFAULT_THANKS_BODY) return thanksBody;
+  if (result?.dryRun) {
+    return "We saved this report locally. No coding agent was launched.";
+  }
+  if (result && !result.dispatched && result.reason) {
+    return "Thanks, we got it. This report was not sent to an agent.";
+  }
+  return thanksBody;
 }
 
 function ChatIcon() {

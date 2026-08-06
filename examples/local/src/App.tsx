@@ -126,7 +126,6 @@ export function App() {
                   disabled={capturing}
                   onClick={() => {
                     setCapturing(true);
-                    setCaptureError(null);
                     void captureScreenshot().finally(() => {
                       setCapturing(false);
                       open();

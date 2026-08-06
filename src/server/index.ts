@@ -1,10 +1,15 @@
 export { createFeedbackHandler } from "./handler";
 export { buildAgentPrompt } from "./prompt";
+export { MemoryFeedbackStore } from "./memory";
 export type {
   PromptInput,
   CreateFeedbackHandlerOptions,
   FeedbackHandlerLimits,
+  FeedbackHandlerEventName,
+  FeedbackHandlerErrorStage,
   FeedbackRepo,
+  FeedbackStore,
+  TrustProxy,
   EnrichInput,
   EnrichResult,
   SessionBundle,

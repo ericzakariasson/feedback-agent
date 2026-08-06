@@ -32,7 +32,5 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match package.json version $version"
             exit 1
           fi
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - run: npm run check
       - run: npm publish

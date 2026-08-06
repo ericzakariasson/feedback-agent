@@ -8,10 +8,12 @@ export type {
   FeedbackWidgetProps,
   FeedbackWidgetClassNames,
   FeedbackCaptureConfig,
+  FeedbackSubmitResult,
   ScreenshotItem,
 } from "./types";
 export type {
   FeedbackPayload,
+  FeedbackHandlerSuccess,
   SessionBundle,
   Breadcrumb,
   ScreenshotPayload,

@@ -1,8 +1,12 @@
 # feedback-agent
 
+> **Status: public 0.x preview.** APIs may still change. Use in production only with auth in `enrich`, a real `store` on serverless, human PR review, and a privacy pass — see [docs/privacy.md](docs/privacy.md) and [SECURITY.md](SECURITY.md).
+
 In-app feedback that captures first-party session context and dispatches a [Cursor cloud agent](https://cursor.com/docs/cloud-agent/api/endpoints) to investigate and open a PR.
 
 Users never leave the product. Cursor API keys never leave your server. No PostHog, Sentry, LogRocket, or FullStory.
+
+Requires **Node ≥ 18.18** and **React ≥ 18** for the widget. Live example: `npm run example` → [http://127.0.0.1:5174](http://127.0.0.1:5174). Next.js App Router example: [`examples/next`](examples/next).
 
 ```mermaid
 flowchart LR
@@ -41,13 +45,15 @@ export function Root({ children }: { children: React.ReactNode }) {
 
 ### Server
 
-**Next.js App Router** — `app/api/feedback/route.ts`:
+**Next.js App Router** — see also [`examples/next`](examples/next). `app/api/feedback/route.ts`:
 
 ```ts
 import { createFeedbackHandler } from "feedback-agent/server";
 
 const handler = createFeedbackHandler({
   cursorApiKey: process.env.CURSOR_API_KEY!,
+  trustProxy: "x-forwarded-for", // Vercel / most proxies. Use "cf" on Cloudflare.
+  autoCreatePR: false, // recommend until a human triages public reports
   repo: { url: "https://github.com/acme/app", ref: "main" },
   async enrich({ request }) {
     const user = await getCurrentUser(request); // cookies / session
@@ -117,6 +123,7 @@ Two entries:
 
 ```ts
 type FeedbackCaptureConfig = {
+  enabled?: boolean
   windowMs?: number
   recordReplay?: boolean
   maskInputs?: boolean
@@ -126,6 +133,7 @@ type FeedbackCaptureConfig = {
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | When `false`, nothing is recorded until `setCaptureEnabled(true)`. Disabling clears the in-memory window. Production recipe: gate on consent or auth. |
 | `windowMs` | `number` | `300000` (5 min) | Rolling lookback. Breadcrumbs, errors, URL history, and replay events older than this are dropped on snapshot/submit. |
 | `recordReplay` | `boolean` | `true` | Record an rrweb DOM replay. `false` skips replay entirely — nothing is recorded or uploaded. |
 | `maskInputs` | `boolean` | `true` | When `true`, rrweb masks **all** typed input values in the replay (`maskAllInputs`). Password, email, and tel are always masked, even when this is `false`. Does not affect the written feedback message. |
@@ -163,7 +171,8 @@ const {
   isOpen, open, close,
   message, setMessage,
   screenshots, addScreenshot, removeScreenshot, captureScreenshot,
-  status, error, feedbackId,
+  status, error, feedbackId, result,
+  captureEnabled, setCaptureEnabled,
   submit, track, reset,
   getSession, getDebugContext,
 } = useFeedback()
@@ -215,13 +224,16 @@ function FeedbackForm() {
 
 ### `track`
 
-Record product events into the session bundle:
+Record product events into the session bundle via the hook (not a standalone export):
 
 ```ts
+const { track } = useFeedback()
 track("checkout_failed", { step: "payment", code: "card_declined" })
 ```
 
 Names and props are redacted. Don't put secrets or PII here — enrichment is the right place for trusted ids.
+
+`result` is the last successful handler body (`dispatched`, `dryRun`, `agentId`, `agentUrl`, `reason`). The default widget only shows `feedbackId` to end users — use `result.agentUrl` in an admin UI if you need it.
 
 ---
 
@@ -247,7 +259,13 @@ Web `Request` / `Response` only. Works on Next.js, Hono, Cloudflare Workers, and
 | `dryRun` | `boolean` | validate + enrich, do not call Cursor |
 | `cursorApiBaseUrl` | `string` | default `https://api.cursor.com` |
 | `skipReviewerRequest` | `boolean` | forwarded to the Agents API |
-| `limits` | `FeedbackHandlerLimits` | override caps / rate limit |
+| `autoCreatePR` | `boolean` | default `true`. Set `false` on public widgets |
+| `trustProxy` | `false \| true \| "cf" \| "x-forwarded-for"` | default `false` (ignore forwarded IPs). Enable only behind a trusted proxy |
+| `store` | `FeedbackStore` | rate limit + dedupe. Default in-memory per process |
+| `onAccepted` | `(event) => void` | persist an audit row before Cursor dispatch |
+| `onEvent` | `(name, data) => void` | `accepted` / `skipped` / `dispatched` / `dry_run` / `rate_limited` / `invalid` / `upstream_failed` |
+| `onError` | `(error, { stage }) => void` | server-side logging only — never sent to the browser |
+| `limits` | `FeedbackHandlerLimits` | override caps / rate limit / dedupe / prompt size |
 
 ### `enrich`
 
@@ -287,7 +305,7 @@ async enrich({ request, feedback, session }) {
 }
 ```
 
-Thrown errors become `500` with `error` from the exception message — don't leak internals.
+Thrown errors become `500` with a generic `"Internal error"`. Use `onError` if you need the real exception server-side.
 
 `context` is summarized into the agent prompt (redacted, size-capped). It is **not** instructions and must **not** be committed into the repo.
 
@@ -355,7 +373,7 @@ type FeedbackHandlerSuccess = {
 | `413` | body too large |
 | `429` | rate limited |
 | `500` | `enrich` / `prompt` threw, or prompt is empty |
-| `502` | Cursor API failed |
+| `502` | Cursor API failed (generic `"Upstream dispatch failed"`) |
 
 `feedbackId` is the client `eventId`. Show it in the thanks state (the default widget does).
 
@@ -363,12 +381,24 @@ Error body: `{ ok: false, error: string }`.
 
 ### Rate limit & dedupe
 
-In-process, per handler instance:
+Default `MemoryFeedbackStore` is in-process, per handler instance:
 
-- **Rate limit** — 8 reports / 10 min / client IP (`x-forwarded-for`, `cf-connecting-ip`, `x-real-ip`)
+- **Rate limit** — 8 reports / 10 min / client key
 - **Dedupe** — same `eventId` within 10 min returns the first result
 
-On multi-instance / serverless this is best-effort. Fine for low-volume personal apps. There is no consumer `store` API.
+With `trustProxy: false` (default) every request shares the key `"unknown"`. That is intentional — forwarded headers are spoofable. On Vercel/Cloudflare set `trustProxy: "x-forwarded-for"` or `"cf"`, **and** enforce per-user caps inside `enrich`.
+
+On multi-instance / serverless pass a shared `store` (Redis, Upstash, your DB):
+
+```ts
+import { createFeedbackHandler, type FeedbackStore } from "feedback-agent/server";
+
+const store: FeedbackStore = {
+  async checkRateLimit(key, { max, windowMs }) { /* INCR + PEXPIRE */ return true },
+  async getDedupe(eventId) { /* GET */ return null },
+  async setDedupe(eventId, result, ttlMs) { /* SETEX */ },
+};
+```
 
 ---
 
@@ -396,7 +426,7 @@ type FeedbackPayload = {
 - `id`, `startedAt`, `capturedAt`, `windowMs`, `href`
 - `urlHistory` — path changes
 - `breadcrumbs` — navigation, clicks on meaningful targets, `track`, errors
-- `errors` — `window.error`, `unhandledrejection`, optional `console.error`
+- `errors` — `window.onerror`, `unhandledrejection`, optional `console.error`
 - `replay` — rrweb events (`format: "rrweb"`), compacted on the client (~800 cap)
 - `metadata` — viewport, locale, timezone, userAgent, platform, `appVersion`
 
@@ -422,7 +452,7 @@ Dry-run validates locally and **does not** call Cursor — images never leave yo
 
 ## Capture & privacy
 
-Defaults are conservative. Treat browser data as untrusted production telemetry.
+Defaults are conservative. Treat browser data as untrusted production telemetry. Integrator checklist: [docs/privacy.md](docs/privacy.md).
 
 | Behavior | Default |
 | --- | --- |
@@ -576,12 +606,12 @@ viewport.png is a live capture at submit. User screenshots are next-most faithfu
 
 Prompt assembly details:
 
-- Navigation: last 12 URL entries
-- Breadcrumbs: last 25
-- Errors: last 15 (stack trimmed to 4 lines each)
-- Enrichment: JSON, max 4,000 chars
-- Replay: all events, formatted timeline (snapshots outlined; inputs redacted)
+- Session is first bounded to `limits` (default 20 URL / 80 breadcrumbs / 30 errors)
+- Prompt text then shows the last 12 URL entries, 25 breadcrumbs, and 15 errors (stack trimmed to 4 lines each)
+- Enrichment: JSON, max 4,000 chars (`maxEnrichmentChars`)
+- Replay: all remaining events, formatted timeline (snapshots outlined; inputs redacted)
 - Screenshots: attached as `prompt.images` on the agent run (not inlined in the prompt text)
+- Full prompt capped at `maxPromptChars` (250k)
 - On submit, if the user attached nothing, the client captures `viewport.png`. It also appends `replay-collage.jpg` when possible (2×2 / 4 frames; scales to 3×2, 3×3, 4×3). Failures are ignored.
 
 Notifications: use Cursor's existing cloud-agent / PR notifications.
@@ -630,7 +660,7 @@ npm run build     # library
 npm run example   # demo app + local handler
 ```
 
-`npm run example` opens the Vite app at `http://127.0.0.1:5174` with a Hono handler on `:8788` (`/api` proxied).
+`npm run example` serves the Vite app at `http://127.0.0.1:5174` with a Hono handler on `:8788` (`/api` proxied). Next.js: `npm run example:next` → `http://localhost:3005`.
 
 ```bash
 cp .env.example .env   # optional
@@ -642,8 +672,11 @@ cp .env.example .env   # optional
 - Use **Inspect** to preview replay + payload; `examples/local/.last-feedback.json` lists screenshot names from the last POST
 
 ```bash
+npm run check      # typecheck + unit tests + build
 npm test
 npm run typecheck
+npx tsc -p examples/local --noEmit
+npm run test:e2e   # Playwright against the local example (installs/uses Chromium)
 ```
 
 ### Publishing
@@ -666,9 +699,40 @@ npm version patch   # or minor / major
 git push origin main --follow-tags
 ```
 
-The tag must match `package.json` (`v0.1.1` ↔ `"version": "0.1.1"`).
+The tag must match `package.json` (`v0.3.1` ↔ `"version": "0.3.1"`). See [CHANGELOG.md](CHANGELOG.md).
 
 ---
+
+## Production recipe
+
+```ts
+createFeedbackHandler({
+  cursorApiKey: process.env.CURSOR_API_KEY!,
+  trustProxy: "x-forwarded-for",
+  autoCreatePR: false,
+  store: redisStore,
+  repo: { url: process.env.FEEDBACK_REPO_URL!, ref: "main" },
+  async enrich({ request }) {
+    const user = await getCurrentUser(request);
+    if (!user) return { dispatch: false, reason: "unauthenticated" };
+    if (await overUserQuota(user.id)) return { dispatch: false, reason: "quota" };
+    return { context: { user: { id: user.id, plan: user.plan } } };
+  },
+  async onAccepted({ payload, enrichment }) {
+    await db.feedbackReports.insert({ payload, enrichment });
+  },
+  onError(error, { stage }) {
+    console.error("feedback-agent", stage, error);
+  },
+});
+```
+
+```tsx
+<FeedbackProvider
+  endpoint="/api/feedback"
+  capture={{ enabled: user?.hasConsent === true }}
+>
+```
 
 ## License
 

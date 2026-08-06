@@ -1,7 +1,7 @@
 import { createContext } from "react";
 import type { SessionBundle } from "../shared/types";
 import type { FeedbackDebugContext } from "./preview";
-import type { ScreenshotItem } from "./types";
+import type { FeedbackSubmitResult, ScreenshotItem } from "./types";
 
 export type FeedbackStatus = "idle" | "submitting" | "success" | "error";
 
@@ -21,6 +21,9 @@ export interface FeedbackContextValue {
   status: FeedbackStatus
   error: string | null
   feedbackId: string | null
+  result: FeedbackSubmitResult | null
+  captureEnabled: boolean
+  setCaptureEnabled: (enabled: boolean) => void
   submit: () => Promise<void>
   track: (name: string, props?: Record<string, unknown>) => void
   reset: () => void

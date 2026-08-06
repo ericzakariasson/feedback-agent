@@ -25,7 +25,7 @@ export const WIDGET_CSS = `
   --fw-elevated: light-dark(#ffffff, #171717);
   --fw-fg: light-dark(#000000, #ffffff);
   --fw-muted: light-dark(rgb(0 0 0 / 68%), rgb(255 255 255 / 72%));
-  --fw-faint: light-dark(rgb(0 0 0 / 48%), rgb(255 255 255 / 52%));
+  --fw-faint: light-dark(rgb(0 0 0 / 56%), rgb(255 255 255 / 60%));
   --fw-border: light-dark(rgb(0 0 0 / 10%), rgb(255 255 255 / 12%));
   --fw-border-strong: light-dark(rgb(0 0 0 / 18%), rgb(255 255 255 / 32%));
   --fw-hover: light-dark(rgb(0 0 0 / 5%), rgb(255 255 255 / 6%));

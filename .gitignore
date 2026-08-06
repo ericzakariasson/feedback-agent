@@ -17,3 +17,9 @@ examples/local/.last-replay-events.json
 .collage-proof.json
 .collage-layouts/
 .latest-replay/
+test-results/
+playwright-report/
+blob-report/
+examples/next/.next/
+examples/next/tsconfig.tsbuildinfo
+

@@ -1,6 +1,6 @@
 {
   "name": "feedback-agent",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "In-app feedback with first-party session capture and Cursor cloud agent dispatch.",
   "license": "MIT",
   "repository": {
@@ -16,7 +16,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "exports": {
     "./react": {
@@ -34,9 +35,12 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build",
-    "example": "npm run build && npm install --prefix examples/local && npm run start --prefix examples/local"
+    "check": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "npm run check",
+    "example": "npm run build && npm install --prefix examples/local && npm run start --prefix examples/local",
+    "example:next": "npm run build && npm install --prefix examples/next && npm run dev --prefix examples/next"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -56,9 +60,13 @@
     "rrweb": "^2.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.0.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "happy-dom": "^18.0.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tsup": "^8.5.0",

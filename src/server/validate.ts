@@ -3,11 +3,14 @@ import {
   DEFAULT_LIMITS,
 } from "../shared/limits";
 import type {
+  Breadcrumb,
   FeedbackPayload,
   ScreenshotPayload,
   SessionBundle,
+  SessionError,
+  UrlEntry,
 } from "../shared/types";
-import type { ResolvedLimits } from "./types";
+import type { ResolvedLimits, TrustProxy } from "./types";
 
 export function resolveLimits(
   limits: Partial<typeof DEFAULT_LIMITS> | undefined,
@@ -15,14 +18,23 @@ export function resolveLimits(
   return { ...DEFAULT_LIMITS, ...limits };
 }
 
-export function clientKey(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]!.trim();
-  return (
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
+export function clientKey(request: Request, trustProxy: TrustProxy = false): string {
+  if (trustProxy === "cf") {
+    return request.headers.get("cf-connecting-ip")?.trim() || "unknown";
+  }
+  if (trustProxy === "x-forwarded-for") {
+    const forwarded = request.headers.get("x-forwarded-for");
+    if (forwarded) return forwarded.split(",")[0]!.trim() || "unknown";
+    return "unknown";
+  }
+  if (trustProxy === true) {
+    const cf = request.headers.get("cf-connecting-ip")?.trim();
+    if (cf) return cf;
+    const forwarded = request.headers.get("x-forwarded-for");
+    if (forwarded) return forwarded.split(",")[0]!.trim() || "unknown";
+    return request.headers.get("x-real-ip")?.trim() || "unknown";
+  }
+  return "unknown";
 }
 
 export async function readJsonBody(
@@ -77,7 +89,7 @@ export function validatePayload(
     screenshots.push(parsed.value);
   }
 
-  const session = parseSession(input.session, limits.maxSessionBytes);
+  const session = parseSession(input.session, limits);
   if (!session.ok) return session;
   if (session.value.id !== sessionId) {
     return { ok: false, error: "session.id must match sessionId" };
@@ -128,7 +140,7 @@ function parseScreenshot(
 
 function parseSession(
   input: unknown,
-  maxSessionBytes: number,
+  limits: ResolvedLimits,
 ): { ok: true; value: SessionBundle } | { ok: false; error: string } {
   if (!isRecord(input)) return { ok: false, error: "session is required" };
   let serialized: string;
@@ -137,7 +149,7 @@ function parseSession(
   } catch {
     return { ok: false, error: "session is not serializable" };
   }
-  if (serialized.length > maxSessionBytes) {
+  if (serialized.length > limits.maxSessionBytes) {
     return { ok: false, error: "session bundle exceeds size limit" };
   }
   const id = asNonEmptyString(input.id);
@@ -153,7 +165,111 @@ function parseSession(
   if (!isRecord(input.metadata) || !isRecord(input.metadata.viewport)) {
     return { ok: false, error: "session.metadata is invalid" };
   }
-  return { ok: true, value: input as unknown as SessionBundle };
+  const viewportWidth = input.metadata.viewport.width;
+  const viewportHeight = input.metadata.viewport.height;
+  if (typeof viewportWidth !== "number" || typeof viewportHeight !== "number") {
+    return { ok: false, error: "session.metadata is invalid" };
+  }
+
+  const urlHistory = Array.isArray(input.urlHistory)
+    ? input.urlHistory.slice(-limits.maxUrlHistory).flatMap((entry) => {
+        if (!isRecord(entry)) return [];
+        const entryHref = asNonEmptyString(entry.href);
+        const timestamp = asNonEmptyString(entry.timestamp);
+        if (!entryHref || !timestamp) return [];
+        const item: UrlEntry = {
+          href: entryHref,
+          timestamp,
+          title: typeof entry.title === "string" ? entry.title.slice(0, 200) : undefined,
+        };
+        return [item];
+      })
+    : [];
+
+  const breadcrumbs = Array.isArray(input.breadcrumbs)
+    ? input.breadcrumbs.slice(-limits.maxBreadcrumbs).flatMap((entry) => {
+        if (!isRecord(entry)) return [];
+        const type = entry.type;
+        const timestamp = asNonEmptyString(entry.timestamp);
+        if (!timestamp) return [];
+        if (
+          type !== "navigation" &&
+          type !== "click" &&
+          type !== "track" &&
+          type !== "error" &&
+          type !== "console"
+        ) {
+          return [];
+        }
+        const item: Breadcrumb = {
+          type,
+          timestamp,
+          name: typeof entry.name === "string" ? entry.name.slice(0, 120) : undefined,
+          message: typeof entry.message === "string" ? entry.message.slice(0, 500) : undefined,
+          href: typeof entry.href === "string" ? entry.href : undefined,
+          data: isRecord(entry.data) ? entry.data : undefined,
+        };
+        return [item];
+      })
+    : [];
+
+  const errors = Array.isArray(input.errors)
+    ? input.errors.slice(-limits.maxErrors).flatMap((entry) => {
+        if (!isRecord(entry)) return [];
+        const timestamp = asNonEmptyString(entry.timestamp);
+        const message = asNonEmptyString(entry.message);
+        const type = entry.type;
+        if (!timestamp || !message) return [];
+        if (type !== "error" && type !== "unhandledrejection" && type !== "console") return [];
+        const item: SessionError = {
+          timestamp,
+          type,
+          message: message.slice(0, 500),
+          stack: typeof entry.stack === "string" ? entry.stack.slice(0, 1_500) : undefined,
+          filename: typeof entry.filename === "string" ? entry.filename : undefined,
+          lineno: typeof entry.lineno === "number" ? entry.lineno : undefined,
+          colno: typeof entry.colno === "number" ? entry.colno : undefined,
+        };
+        return [item];
+      })
+    : [];
+
+  let replay: SessionBundle["replay"];
+  if (input.replay != null) {
+    if (!isRecord(input.replay)) return { ok: false, error: "session.replay is invalid" };
+    const events = Array.isArray(input.replay.events) ? input.replay.events : [];
+    replay = {
+      format: "rrweb",
+      events,
+      eventCount:
+        typeof input.replay.eventCount === "number" ? input.replay.eventCount : events.length,
+      truncated: Boolean(input.replay.truncated),
+    };
+  }
+
+  const metadataRecord = input.metadata;
+  return {
+    ok: true,
+    value: {
+      id,
+      startedAt,
+      capturedAt,
+      windowMs: input.windowMs,
+      href,
+      urlHistory,
+      breadcrumbs,
+      errors,
+      replay,
+      metadata: {
+        viewport: { width: viewportWidth, height: viewportHeight },
+        locale: typeof metadataRecord.locale === "string" ? metadataRecord.locale : undefined,
+        timezone: typeof metadataRecord.timezone === "string" ? metadataRecord.timezone : undefined,
+        userAgent: typeof metadataRecord.userAgent === "string" ? metadataRecord.userAgent : undefined,
+        appVersion: typeof metadataRecord.appVersion === "string" ? metadataRecord.appVersion : undefined,
+        platform: typeof metadataRecord.platform === "string" ? metadataRecord.platform : undefined,
+      },
+    },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

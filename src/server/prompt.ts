@@ -7,11 +7,13 @@ export function buildAgentPrompt(input: {
   feedbackId: string
   payload: FeedbackPayload
   enrichment?: Record<string, unknown>
+  limits?: Partial<typeof DEFAULT_LIMITS>
 }): string {
   const { feedbackId, payload, enrichment } = input;
-  const session = boundSession(payload.session);
+  const limits = { ...DEFAULT_LIMITS, ...input.limits };
+  const session = boundSession(payload.session, limits);
   const enrichSummary = enrichment
-    ? truncateJson(redactUnknown(enrichment), DEFAULT_LIMITS.maxEnrichmentChars)
+    ? truncateJson(redactUnknown(enrichment), limits.maxEnrichmentChars)
     : "none";
 
   const breadcrumbs = session.breadcrumbs
@@ -65,7 +67,7 @@ export function buildAgentPrompt(input: {
 - screenshotCount: ${payload.screenshots.length}
 - untrusted user message:
 """
-${redactText(payload.message, DEFAULT_LIMITS.maxMessageChars)}
+${redactText(payload.message, limits.maxMessageChars)}
 """
 
 ## Navigation
@@ -94,7 +96,7 @@ The images listed above are attached to this run in that same order. Use them as
 viewport.png is a live capture at submit. User screenshots are next-most faithful. replay-collage.jpg is a session replay grid (left-to-right, top-to-bottom; often 2×2).
 `;
 
-  const budget = DEFAULT_LIMITS.maxPromptChars - head.length - tail.length - 80;
+  const budget = limits.maxPromptChars - head.length - tail.length - 80;
   return `${head}${fitText(replay, Math.max(2_000, budget), "later replay events omitted")}${tail}`;
 }
 
@@ -132,12 +134,15 @@ function formatReplaySection(replay: NonNullable<SessionBundle["replay"]>): stri
   return `${note}\n\n${formatReplayTimeline(events)}\n`;
 }
 
-function boundSession(session: SessionBundle): SessionBundle {
+function boundSession(
+  session: SessionBundle,
+  limits: typeof DEFAULT_LIMITS,
+): SessionBundle {
   return {
     ...session,
-    breadcrumbs: session.breadcrumbs?.slice(-80) ?? [],
-    errors: session.errors?.slice(-30) ?? [],
-    urlHistory: session.urlHistory?.slice(-20) ?? [],
+    breadcrumbs: session.breadcrumbs?.slice(-limits.maxBreadcrumbs) ?? [],
+    errors: session.errors?.slice(-limits.maxErrors) ?? [],
+    urlHistory: session.urlHistory?.slice(-limits.maxUrlHistory) ?? [],
     replay: session.replay
       ? {
           ...session.replay,

@@ -97,6 +97,13 @@ export class SessionCapture {
     this.started = false;
   }
 
+  clear(): void {
+    this.breadcrumbs = [];
+    this.errors = [];
+    this.urlHistory = [];
+    this.replayEvents = [];
+  }
+
   track(name: string, props?: Record<string, unknown>): void {
     this.pushBreadcrumb({
       type: "track",

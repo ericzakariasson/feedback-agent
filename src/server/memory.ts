@@ -1,3 +1,6 @@
+import type { FeedbackHandlerSuccess } from "../shared/types";
+import type { FeedbackStore } from "./types";
+
 interface TimedValue<T> {
   value: T
   expiresAt: number
@@ -55,5 +58,29 @@ export class SlidingWindowLimiter {
     next.push(now);
     this.hits.set(key, next);
     return true;
+  }
+}
+
+/** In-process rate limit + dedupe. Fine for one instance; use `store` on serverless. */
+export class MemoryFeedbackStore implements FeedbackStore {
+  private limiters = new Map<string, SlidingWindowLimiter>();
+  private seen = new TtlMap<FeedbackHandlerSuccess>(10 * 60 * 1000);
+
+  checkRateLimit(key: string, limit: { max: number; windowMs: number }): boolean {
+    const limiterKey = `${limit.max}:${limit.windowMs}`;
+    let limiter = this.limiters.get(limiterKey);
+    if (!limiter) {
+      limiter = new SlidingWindowLimiter(limit.max, limit.windowMs);
+      this.limiters.set(limiterKey, limiter);
+    }
+    return limiter.check(key);
+  }
+
+  getDedupe(eventId: string): FeedbackHandlerSuccess | null {
+    return this.seen.get(eventId) ?? null;
+  }
+
+  setDedupe(eventId: string, result: FeedbackHandlerSuccess, ttlMs: number): void {
+    this.seen.set(eventId, result, ttlMs);
   }
 }

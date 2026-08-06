@@ -7,11 +7,16 @@ import {
   type ReactNode,
 } from "react";
 import { ALLOWED_IMAGE_TYPES, CLIENT_LIMITS, DEFAULT_LIMITS } from "../shared/limits";
-import type { AllowedImageType, FeedbackPayload, ScreenshotPayload } from "../shared/types";
+import type {
+  AllowedImageType,
+  FeedbackHandlerSuccess,
+  FeedbackPayload,
+  ScreenshotPayload,
+} from "../shared/types";
 import { SessionCapture } from "./capture/session";
 import { FeedbackContext, type FeedbackStatus } from "./context";
 import { buildDebugContext } from "./preview";
-import type { FeedbackProviderProps, ScreenshotItem } from "./types";
+import type { FeedbackProviderProps, FeedbackSubmitResult, ScreenshotItem } from "./types";
 
 function isAllowedType(type: string): type is AllowedImageType {
   return (ALLOWED_IMAGE_TYPES as readonly string[]).includes(type);
@@ -45,6 +50,37 @@ function newId(): string {
   return crypto.randomUUID?.() ?? `fw_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(undefined), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(undefined);
+      },
+    );
+  });
+}
+
+function asSubmitResult(body: unknown, fallbackId: string): FeedbackSubmitResult | null {
+  if (!body || typeof body !== "object") return null;
+  const value = body as Partial<FeedbackHandlerSuccess> & { error?: string };
+  if (value.ok !== true) return null;
+  return {
+    ok: true,
+    dispatched: Boolean(value.dispatched),
+    feedbackId: typeof value.feedbackId === "string" ? value.feedbackId : fallbackId,
+    agentId: typeof value.agentId === "string" ? value.agentId : undefined,
+    agentUrl: typeof value.agentUrl === "string" ? value.agentUrl : undefined,
+    dryRun: value.dryRun === true ? true : undefined,
+    reason: typeof value.reason === "string" ? value.reason : undefined,
+  };
+}
+
 export function FeedbackProvider({
   endpoint,
   children,
@@ -59,7 +95,15 @@ export function FeedbackProvider({
   const [status, setStatus] = useState<FeedbackStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
+  const [result, setResult] = useState<FeedbackSubmitResult | null>(null);
+  const [captureEnabled, setCaptureEnabledState] = useState(capture?.enabled ?? true);
   screenshotsRef.current = screenshots;
+
+  useEffect(() => {
+    if (typeof capture?.enabled === "boolean") {
+      setCaptureEnabledState(capture.enabled);
+    }
+  }, [capture?.enabled]);
 
   useEffect(() => {
     const session = new SessionCapture({
@@ -70,9 +114,11 @@ export function FeedbackProvider({
       consoleErrors: capture?.consoleErrors,
     });
     captureRef.current = session;
-    session.start();
+    if (captureEnabled) session.start();
+    else session.clear();
     return () => {
       session.stop();
+      session.clear();
       captureRef.current = null;
     };
   }, [
@@ -81,14 +127,13 @@ export function FeedbackProvider({
     capture?.recordReplay,
     capture?.maskInputs,
     capture?.consoleErrors,
+    captureEnabled,
   ]);
 
   useEffect(() => {
     return () => {
-      for (const shot of screenshots) URL.revokeObjectURL(shot.url);
+      for (const shot of screenshotsRef.current) URL.revokeObjectURL(shot.url);
     };
-    // only on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const open = useCallback(() => {
@@ -96,11 +141,16 @@ export function FeedbackProvider({
     if (status === "success") {
       setStatus("idle");
       setFeedbackId(null);
+      setResult(null);
       setError(null);
     }
   }, [status]);
 
   const close = useCallback(() => setOpen(false), []);
+
+  const setCaptureEnabled = useCallback((enabled: boolean) => {
+    setCaptureEnabledState(enabled);
+  }, []);
 
   const track = useCallback((name: string, props?: Record<string, unknown>) => {
     captureRef.current?.track(name, props);
@@ -159,7 +209,7 @@ export function FeedbackProvider({
         cacheBust: true,
         pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
         filter: (node) => {
-          if (!(node instanceof HTMLElement)) return true;
+          if (!(node instanceof Element)) return true;
           return !node.closest("[data-feedback-agent]");
         },
       });
@@ -202,6 +252,7 @@ export function FeedbackProvider({
     setStatus("idle");
     setError(null);
     setFeedbackId(null);
+    setResult(null);
   }, []);
 
   const submit = useCallback(async () => {
@@ -240,22 +291,14 @@ export function FeedbackProvider({
       }
 
       if (shots.length === 0) {
-        try {
-          const { captureViewportPayload } = await import("./capture/viewport");
-          const viewport = await captureViewportPayload();
-          if (viewport) shots.push(viewport);
-        } catch {
-          /* viewport is best-effort */
-        }
+        const { captureViewportPayload } = await import("./capture/viewport");
+        const viewport = await withTimeout(captureViewportPayload(), 2_000);
+        if (viewport) shots.push(viewport);
       }
       if (shots.length < DEFAULT_LIMITS.maxScreenshots) {
-        try {
-          const { buildReplayCollage } = await import("./capture/collage");
-          const collage = await buildReplayCollage(session);
-          if (collage) shots.push(collage);
-        } catch {
-          /* collage is best-effort */
-        }
+        const { buildReplayCollage } = await import("./capture/collage");
+        const collage = await withTimeout(buildReplayCollage(session), 2_000);
+        if (collage) shots.push(collage);
       }
 
       const payload: FeedbackPayload = {
@@ -274,14 +317,22 @@ export function FeedbackProvider({
         body: JSON.stringify(payload),
       });
       const body = (await response.json().catch(() => null)) as
-        | { ok?: boolean; feedbackId?: string; error?: string }
+        | (FeedbackHandlerSuccess & { error?: string })
+        | { ok?: false; error?: string }
         | null;
 
-      if (!response.ok || !body?.ok) {
-        throw new Error(body?.error || `Request failed (${response.status})`);
+      const parsed = asSubmitResult(body, eventId);
+      if (!response.ok || !parsed) {
+        const serverError = body && "error" in body ? body.error : undefined;
+        throw new Error(
+          serverError && !/internal|upstream|exception|stack/i.test(serverError)
+            ? serverError
+            : `Could not send feedback (${response.status}).`,
+        );
       }
 
-      setFeedbackId(body.feedbackId ?? eventId);
+      setResult(parsed);
+      setFeedbackId(parsed.feedbackId);
       setStatus("success");
     } catch (err) {
       setStatus("error");
@@ -306,6 +357,9 @@ export function FeedbackProvider({
       status,
       error,
       feedbackId,
+      result,
+      captureEnabled,
+      setCaptureEnabled,
       submit,
       track,
       reset,
@@ -325,6 +379,9 @@ export function FeedbackProvider({
       status,
       error,
       feedbackId,
+      result,
+      captureEnabled,
+      setCaptureEnabled,
       submit,
       track,
       reset,

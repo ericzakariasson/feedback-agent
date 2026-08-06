@@ -1,4 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
+import type { FeedbackHandlerSuccess } from "../shared/types";
+
+export type FeedbackSubmitResult = FeedbackHandlerSuccess;
 
 export interface ScreenshotItem {
   id: string
@@ -11,6 +14,8 @@ export interface ScreenshotItem {
 }
 
 export interface FeedbackCaptureConfig {
+  /** When false, capture does not start until `setCaptureEnabled(true)`. Default true. */
+  enabled?: boolean
   windowMs?: number
   recordReplay?: boolean
   maskInputs?: boolean
