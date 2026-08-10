@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm audit --omit=dev
+      - run: npm install --prefix examples/local
       - run: npx tsc -p examples/local --noEmit
 
   react18:
@@ -56,6 +57,8 @@ jobs:
       - run: npm run build
       - run: npm install --prefix examples/next
       - run: npm run typecheck --prefix examples/next
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test -c playwright.next.config.ts
 
   e2e:
     runs-on: ubuntu-latest
