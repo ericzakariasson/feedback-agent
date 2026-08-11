@@ -28,11 +28,20 @@ export function InvoiceRow({ invoice }: { invoice: Invoice }) {
     setEditing(true);
   }
 
+  function commitEdit() {
+    const next = draft.trim();
+    setEditing(false);
+    if (!next) {
+      setDraft(title);
+      return;
+    }
+    setTitle(next);
+    setDraft(next);
+  }
+
   function handleBlur() {
     track("invoice_rename_blurred", { id: invoice.id, draft });
-    setEditing(false);
-    // reset to the server value
-    setTitle(invoice.title);
+    commitEdit();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -41,9 +50,8 @@ export function InvoiceRow({ invoice }: { invoice: Invoice }) {
       return;
     }
     if (event.key === "Escape") {
-      setDraft(invoice.title);
+      setDraft(title);
       setEditing(false);
-      setTitle(invoice.title);
     }
   }
 
