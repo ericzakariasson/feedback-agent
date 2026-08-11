@@ -6,7 +6,7 @@ In-app feedback that captures first-party session context and dispatches a [Curs
 
 Users never leave the product. Cursor API keys never leave your server. No PostHog, Sentry, LogRocket, or FullStory.
 
-Requires **Node ≥ 18.18** and **React ≥ 18** for the widget. Live example: `npm run example` → [http://127.0.0.1:5174](http://127.0.0.1:5174). Next.js App Router example: [`examples/next`](examples/next).
+Requires **Node ≥ 18.18** and **React ≥ 18** for the widget. Live example: `npm run example` → [http://127.0.0.1:5174](http://127.0.0.1:5174). Next.js App Router example: [`examples/next`](examples/next). Recording demo (Acme invoices + live Cursor agent): `npm run example:acme` → [http://127.0.0.1:5175](http://127.0.0.1:5175).
 
 ```mermaid
 flowchart LR
@@ -660,7 +660,7 @@ npm run build     # library
 npm run example   # demo app + local handler
 ```
 
-`npm run example` serves the Vite app at `http://127.0.0.1:5174` with a Hono handler on `:8788` (`/api` proxied). Next.js: `npm run example:next` → `http://localhost:3005`.
+`npm run example` serves the Vite app at `http://127.0.0.1:5174` with a Hono handler on `:8788` (`/api` proxied). Next.js: `npm run example:next` → `http://localhost:3005`. Acme recording demo: `npm run example:acme` → `http://127.0.0.1:5175` (live Cursor dispatch unless `FEEDBACK_DRY_RUN=true`). See [`examples/acme`](examples/acme).
 
 ```bash
 cp .env.example .env   # optional
