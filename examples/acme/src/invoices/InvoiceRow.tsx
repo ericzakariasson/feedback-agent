@@ -5,6 +5,7 @@ import type { Invoice } from "../invoices";
 export function InvoiceRow({ invoice }: { invoice: Invoice }) {
   const { track } = useFeedback();
   const inputRef = useRef<HTMLInputElement>(null);
+  const skipCommitRef = useRef(false);
   const [title, setTitle] = useState(invoice.title);
   const [draft, setDraft] = useState(invoice.title);
   const [editing, setEditing] = useState(false);
@@ -30,9 +31,16 @@ export function InvoiceRow({ invoice }: { invoice: Invoice }) {
 
   function handleBlur() {
     track("invoice_rename_blurred", { id: invoice.id, draft });
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false;
+      setDraft(title);
+      setEditing(false);
+      return;
+    }
+    const next = draft.trim() || title;
+    setTitle(next);
+    setDraft(next);
     setEditing(false);
-    // reset to the server value
-    setTitle(invoice.title);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -41,9 +49,9 @@ export function InvoiceRow({ invoice }: { invoice: Invoice }) {
       return;
     }
     if (event.key === "Escape") {
-      setDraft(invoice.title);
+      skipCommitRef.current = true;
+      setDraft(title);
       setEditing(false);
-      setTitle(invoice.title);
     }
   }
 
