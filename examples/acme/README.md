@@ -2,7 +2,7 @@
 
 Quiet invoicing app for a Screen Studio take of feedback-agent.
 
-The Northwind row (`Website refresh`) has a real inline-rename bug: type a new title, click away, it snaps back. Reporting that launches a **real Cursor cloud agent** against this GitHub repo.
+Inline invoice titles are editable: click a title, type a new name, click away (or press Enter) to save. Escape cancels. Reporting feedback from this app launches a **real Cursor cloud agent** against this GitHub repo.
 
 ```bash
 # from the repo root
@@ -24,8 +24,8 @@ Each send opens a PR if the agent finds the bug. Skip dry-run takes; they will n
 
 ## Shot
 
-1. Open `/invoices`. Click **Website refresh**, type `Website redesign`, click empty space. It reverts.
-2. Feedback → `Renaming an invoice reverts when I click away.` → Send.
+1. Open `/invoices`. Click **Website refresh**, type `Website redesign`, click empty space. The new title sticks.
+2. Feedback → describe any issue you hit → Send.
 3. Terminal prints `dispatched evt_… → https://cursor.com/agents/…`. Cut to that agent, then the PR.
 
 ## Dry run
