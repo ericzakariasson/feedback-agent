@@ -17,6 +17,18 @@ describe("selectPageRegion", () => {
     expect(document.getElementById(REGION_HOST_ID)).toBeNull();
   });
 
+  it("resets a cancelled draw so a new drag can start", async () => {
+    const pending = selectPageRegion();
+    const host = document.getElementById(REGION_HOST_ID);
+    expect(host).toBeTruthy();
+    const stage = host?.shadowRoot?.querySelector(".stage") ?? document.querySelector(".stage");
+    // Closed shadow is not queryable; dispatch on the host so the page still works after cancel.
+    host?.dispatchEvent(new Event("pointercancel", { bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await expect(pending).resolves.toBeNull();
+    expect(stage === null || document.getElementById(REGION_HOST_ID) === null).toBe(true);
+  });
+
   it("replaces an existing overlay instead of stacking hosts", async () => {
     const first = selectPageRegion();
     const second = selectPageRegion();

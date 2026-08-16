@@ -13,6 +13,7 @@ import type {
   FeedbackPayload,
   ScreenshotPayload,
 } from "../shared/types";
+import { removeRegionOverlay } from "./capture/region-overlay";
 import { SessionCapture } from "./capture/session";
 import { FeedbackContext, type FeedbackStatus } from "./context";
 import { buildDebugContext } from "./preview";
@@ -108,7 +109,16 @@ export function FeedbackProvider({
   const [result, setResult] = useState<FeedbackSubmitResult | null>(null);
   const [captureEnabled, setCaptureEnabledState] = useState(capture?.enabled ?? true);
   const [isSelectingRegion, setSelectingRegion] = useState(false);
+  const mountedRef = useRef(true);
   screenshotsRef.current = screenshots;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      removeRegionOverlay();
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof capture?.enabled === "boolean") {
@@ -240,15 +250,22 @@ export function FeedbackProvider({
     try {
       const { selectPageRegion } = await import("./capture/region-overlay");
       const selection = await selectPageRegion();
-      if (!selection) return;
+      if (!selection || !mountedRef.current) return;
       const { captureRegionBlob } = await import("./capture/region");
-      const blob = await captureRegionBlob(selection.rect);
+      const blob = await captureRegionBlob(selection.rect, selection.viewport);
+      if (!mountedRef.current) return;
       await addScreenshot(blob, `region-${new Date().toISOString()}.png`);
-    } catch {
-      setError("Could not capture this page. Try uploading or pasting a screenshot.");
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const message = err instanceof Error ? err.message : "";
+      setError(
+        message.includes("2 MB")
+          ? message
+          : "Could not capture this page. Try uploading or pasting a screenshot.",
+      );
       setStatus("error");
     } finally {
-      setSelectingRegion(false);
+      if (mountedRef.current) setSelectingRegion(false);
     }
   }, [addScreenshot]);
 

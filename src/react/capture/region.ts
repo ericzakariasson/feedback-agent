@@ -7,7 +7,10 @@ function excludeFeedbackNodes(node: Node): boolean {
   return !node.closest("[data-feedback-agent]");
 }
 
-export async function captureRegionBlob(rect: RegionRect): Promise<Blob> {
+export async function captureRegionBlob(
+  rect: RegionRect,
+  viewport: { width: number; height: number },
+): Promise<Blob> {
   if (typeof document === "undefined") {
     throw new Error("Region capture requires a document");
   }
@@ -16,6 +19,8 @@ export async function captureRegionBlob(rect: RegionRect): Promise<Blob> {
   const dataUrl = await toPng(document.documentElement, {
     cacheBust: true,
     pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    width: Math.max(1, Math.round(viewport.width)),
+    height: Math.max(1, Math.round(viewport.height)),
     filter: excludeFeedbackNodes,
   });
   const response = await fetch(dataUrl);
@@ -24,15 +29,10 @@ export async function captureRegionBlob(rect: RegionRect): Promise<Blob> {
     throw new Error("Could not capture this page");
   }
   const bitmap = await createImageBitmap(source);
-  const crop = cropRectToBitmap(
-    rect,
-    { x: window.scrollX, y: window.scrollY },
-    { width: bitmap.width, height: bitmap.height },
-    {
-      width: Math.max(document.documentElement.scrollWidth, 1),
-      height: Math.max(document.documentElement.scrollHeight, 1),
-    },
-  );
+  const crop = cropRectToBitmap(rect, viewport, {
+    width: bitmap.width,
+    height: bitmap.height,
+  });
   const canvas = document.createElement("canvas");
   canvas.width = crop.sw;
   canvas.height = crop.sh;

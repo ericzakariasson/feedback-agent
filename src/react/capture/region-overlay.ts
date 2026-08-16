@@ -36,6 +36,35 @@ export function removeRegionOverlay(): void {
   document.getElementById(REGION_HOST_ID)?.remove();
 }
 
+function trackPointer(
+  target: HTMLElement,
+  pointerId: number,
+  onMove: (event: PointerEvent) => void,
+  onEnd: (cancelled: boolean) => void,
+): void {
+  let done = false;
+  const finish = (cancelled: boolean) => {
+    if (done) return;
+    done = true;
+    target.removeEventListener("pointermove", onMove);
+    target.removeEventListener("pointerup", onUp);
+    target.removeEventListener("pointercancel", onCancel);
+    target.removeEventListener("lostpointercapture", onCancel);
+    try {
+      target.releasePointerCapture(pointerId);
+    } catch {
+      // already released
+    }
+    onEnd(cancelled);
+  };
+  const onUp = () => finish(false);
+  const onCancel = () => finish(true);
+  target.addEventListener("pointermove", onMove);
+  target.addEventListener("pointerup", onUp);
+  target.addEventListener("pointercancel", onCancel);
+  target.addEventListener("lostpointercapture", onCancel);
+}
+
 function installRegionOverlay(done: (selection: RegionSelection | null) => void): () => void {
   const host = document.createElement("div");
   host.id = REGION_HOST_ID;
@@ -48,7 +77,8 @@ function installRegionOverlay(done: (selection: RegionSelection | null) => void)
   const style = document.createElement("style");
   style.textContent = `
     :host, * { box-sizing: border-box; font-weight: 400 !important; font-family: Inter, "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    .stage { position: fixed; inset: 0; cursor: crosshair; }
+    .stage { position: fixed; inset: 0; cursor: crosshair; touch-action: none; }
+    .box { touch-action: none; }
     .hint {
       position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
       background: #000000; color: #ffffff; padding: 8px 14px; border-radius: 999px;
@@ -262,35 +292,30 @@ function installRegionOverlay(done: (selection: RegionSelection | null) => void)
     const startX = event.clientX;
     const startY = event.clientY;
 
-    const move = (ev: PointerEvent) => {
-      const cx = clamp(ev.clientX, 0, window.innerWidth);
-      const cy = clamp(ev.clientY, 0, window.innerHeight);
-      rect = {
-        x: Math.min(startX, cx),
-        y: Math.min(startY, cy),
-        w: Math.abs(cx - startX),
-        h: Math.abs(cy - startY),
-      };
-      applyRect();
-    };
-    const up = () => {
-      stage.removeEventListener("pointermove", move);
-      stage.removeEventListener("pointerup", up);
-      try {
-        stage.releasePointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-      if (rect.w < 12 || rect.h < 12) {
-        setMode("idle");
-        rect = { x: 0, y: 0, w: 0, h: 0 };
+    trackPointer(
+      stage,
+      event.pointerId,
+      (ev) => {
+        const cx = clamp(ev.clientX, 0, window.innerWidth);
+        const cy = clamp(ev.clientY, 0, window.innerHeight);
+        rect = {
+          x: Math.min(startX, cx),
+          y: Math.min(startY, cy),
+          w: Math.abs(cx - startX),
+          h: Math.abs(cy - startY),
+        };
         applyRect();
-        return;
-      }
-      setMode("editing");
-    };
-    stage.addEventListener("pointermove", move);
-    stage.addEventListener("pointerup", up);
+      },
+      (cancelled) => {
+        if (cancelled || rect.w < 12 || rect.h < 12) {
+          setMode("idle");
+          rect = { x: 0, y: 0, w: 0, h: 0 };
+          applyRect();
+          return;
+        }
+        setMode("editing");
+      },
+    );
   });
 
   box.addEventListener("pointerdown", (event) => {
@@ -304,30 +329,25 @@ function installRegionOverlay(done: (selection: RegionSelection | null) => void)
     box.setPointerCapture(event.pointerId);
     dragOrigin = { px: event.clientX, py: event.clientY, rect: { ...rect } };
 
-    const move = (ev: PointerEvent) => {
-      if (!dragOrigin) return;
-      const dx = ev.clientX - dragOrigin.px;
-      const dy = ev.clientY - dragOrigin.py;
-      rect = {
-        x: clamp(dragOrigin.rect.x + dx, 0, window.innerWidth - dragOrigin.rect.w),
-        y: clamp(dragOrigin.rect.y + dy, 0, window.innerHeight - dragOrigin.rect.h),
-        w: dragOrigin.rect.w,
-        h: dragOrigin.rect.h,
-      };
-      applyRect();
-    };
-    const up = () => {
-      box.removeEventListener("pointermove", move);
-      box.removeEventListener("pointerup", up);
-      try {
-        box.releasePointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-      dragOrigin = null;
-    };
-    box.addEventListener("pointermove", move);
-    box.addEventListener("pointerup", up);
+    trackPointer(
+      box,
+      event.pointerId,
+      (ev) => {
+        if (!dragOrigin) return;
+        const dx = ev.clientX - dragOrigin.px;
+        const dy = ev.clientY - dragOrigin.py;
+        rect = {
+          x: clamp(dragOrigin.rect.x + dx, 0, window.innerWidth - dragOrigin.rect.w),
+          y: clamp(dragOrigin.rect.y + dy, 0, window.innerHeight - dragOrigin.rect.h),
+          w: dragOrigin.rect.w,
+          h: dragOrigin.rect.h,
+        };
+        applyRect();
+      },
+      () => {
+        dragOrigin = null;
+      },
+    );
   });
 
   for (const cls of handleClasses) {
@@ -342,44 +362,39 @@ function installRegionOverlay(done: (selection: RegionSelection | null) => void)
       resizeHandle = cls;
       const origin = { px: event.clientX, py: event.clientY, rect: { ...rect } };
 
-      const move = (ev: PointerEvent) => {
-        if (!resizeHandle) return;
-        const dx = ev.clientX - origin.px;
-        const dy = ev.clientY - origin.py;
-        let { x, y, w, h } = origin.rect;
-        const right = x + w;
-        const bottom = y + h;
-        if (resizeHandle.includes("l")) {
-          const nx = clamp(x + dx, 0, right - 4);
-          w = right - nx;
-          x = nx;
-        }
-        if (resizeHandle.includes("r")) {
-          w = clamp(w + dx, 4, window.innerWidth - x);
-        }
-        if (resizeHandle.includes("t")) {
-          const ny = clamp(y + dy, 0, bottom - 4);
-          h = bottom - ny;
-          y = ny;
-        }
-        if (resizeHandle.includes("b")) {
-          h = clamp(h + dy, 4, window.innerHeight - y);
-        }
-        rect = { x, y, w, h };
-        applyRect();
-      };
-      const up = () => {
-        handle.removeEventListener("pointermove", move);
-        handle.removeEventListener("pointerup", up);
-        try {
-          handle.releasePointerCapture(event.pointerId);
-        } catch {
-          // ignore
-        }
-        resizeHandle = null;
-      };
-      handle.addEventListener("pointermove", move);
-      handle.addEventListener("pointerup", up);
+      trackPointer(
+        handle,
+        event.pointerId,
+        (ev) => {
+          if (!resizeHandle) return;
+          const dx = ev.clientX - origin.px;
+          const dy = ev.clientY - origin.py;
+          let { x, y, w, h } = origin.rect;
+          const right = x + w;
+          const bottom = y + h;
+          if (resizeHandle.includes("l")) {
+            const nx = clamp(x + dx, 0, right - 4);
+            w = right - nx;
+            x = nx;
+          }
+          if (resizeHandle.includes("r")) {
+            w = clamp(w + dx, 4, window.innerWidth - x);
+          }
+          if (resizeHandle.includes("t")) {
+            const ny = clamp(y + dy, 0, bottom - 4);
+            h = bottom - ny;
+            y = ny;
+          }
+          if (resizeHandle.includes("b")) {
+            h = clamp(h + dy, 4, window.innerHeight - y);
+          }
+          rect = { x, y, w, h };
+          applyRect();
+        },
+        () => {
+          resizeHandle = null;
+        },
+      );
     });
   }
 

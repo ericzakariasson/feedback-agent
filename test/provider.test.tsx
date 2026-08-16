@@ -11,9 +11,15 @@ vi.mock("../src/react/capture/collage", () => ({
   buildReplayCollage: async () => null,
 }));
 
-vi.mock("../src/react/capture/region-overlay", () => ({
-  selectPageRegion: vi.fn(),
-}));
+vi.mock("../src/react/capture/region-overlay", async () => {
+  const actual = await vi.importActual<typeof import("../src/react/capture/region-overlay")>(
+    "../src/react/capture/region-overlay",
+  );
+  return {
+    ...actual,
+    selectPageRegion: vi.fn(),
+  };
+});
 
 vi.mock("../src/react/capture/region", () => ({
   captureRegionBlob: vi.fn(),
@@ -176,7 +182,47 @@ describe("FeedbackProvider", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "capture-region" }));
     await waitFor(() => expect(text("count")).toBe("1"));
-    expect(crop).toHaveBeenCalledWith({ x: 10, y: 20, width: 80, height: 40 });
+    expect(crop).toHaveBeenCalledWith(
+      { x: 10, y: 20, width: 80, height: 40 },
+      { width: 800, height: 600 },
+    );
     expect(text("selecting")).toBe("no");
+  });
+
+  it("cancels an in-flight region overlay when the provider unmounts", async () => {
+    const { selectPageRegion, REGION_HOST_ID } = await import("../src/react/capture/region-overlay");
+    const select = vi.mocked(selectPageRegion);
+    let release!: (value: null) => void;
+    select.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+          const host = document.createElement("div");
+          host.id = REGION_HOST_ID;
+          host.setAttribute("data-feedback-agent", "");
+          document.documentElement.appendChild(host);
+        }),
+    );
+
+    function RegionProbe() {
+      const { captureRegionScreenshot } = useFeedback();
+      return (
+        <button type="button" onClick={() => void captureRegionScreenshot()}>
+          capture-region
+        </button>
+      );
+    }
+
+    const view = render(
+      <FeedbackProvider endpoint="/api/feedback">
+        <RegionProbe />
+      </FeedbackProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "capture-region" }));
+    await waitFor(() => expect(document.getElementById(REGION_HOST_ID)).toBeTruthy());
+    view.unmount();
+    await waitFor(() => expect(document.getElementById(REGION_HOST_ID)).toBeNull());
+    release(null);
   });
 });

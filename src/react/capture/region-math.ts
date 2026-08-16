@@ -10,28 +10,27 @@ export type BitmapSize = {
   height: number
 }
 
-export type DocumentSize = {
+export type ViewportSize = {
   width: number
   height: number
 }
 
 /**
- * Map a viewport-space selection onto a full-document bitmap.
- * `html-to-image` captures `document.documentElement` from (0, 0), so the
- * selection is offset by scroll and scaled by the bitmap / document ratio.
+ * Map a viewport-space selection onto a viewport-sized bitmap.
+ * Region capture rasters the visible viewport, so the selection is scaled by
+ * the bitmap / viewport ratio and is not offset by document scroll.
  */
 export function cropRectToBitmap(
   rect: RegionRect,
-  scroll: { x: number; y: number },
+  viewport: ViewportSize,
   bitmap: BitmapSize,
-  documentSize: DocumentSize,
 ): { sx: number; sy: number; sw: number; sh: number } {
-  const docW = Math.max(1, documentSize.width);
-  const docH = Math.max(1, documentSize.height);
-  const scaleX = bitmap.width / docW;
-  const scaleY = bitmap.height / docH;
-  const sx = Math.max(0, Math.round((rect.x + scroll.x) * scaleX));
-  const sy = Math.max(0, Math.round((rect.y + scroll.y) * scaleY));
+  const viewW = Math.max(1, viewport.width);
+  const viewH = Math.max(1, viewport.height);
+  const scaleX = bitmap.width / viewW;
+  const scaleY = bitmap.height / viewH;
+  const sx = Math.max(0, Math.round(rect.x * scaleX));
+  const sy = Math.max(0, Math.round(rect.y * scaleY));
   const sw = Math.max(1, Math.round(rect.width * scaleX));
   const sh = Math.max(1, Math.round(rect.height * scaleY));
   return {
