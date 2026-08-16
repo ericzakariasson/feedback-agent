@@ -108,31 +108,30 @@ export function FeedbackProvider({
     }
   }, [capture?.enabled]);
 
-  const session = useMemo(() => {
-    captureRef.current?.stop();
-    captureRef.current?.clear();
-    return new SessionCapture({
+  const session = useMemo(
+    () =>
+      new SessionCapture({
+        appVersion,
+        windowMs: capture?.windowMs,
+        recordReplay: capture?.recordReplay,
+        recordNetwork: capture?.recordNetwork,
+        maskInputs: capture?.maskInputs,
+        consoleErrors: capture?.consoleErrors,
+        endpoint,
+      }),
+    [
       appVersion,
-      windowMs: capture?.windowMs,
-      recordReplay: capture?.recordReplay,
-      recordNetwork: capture?.recordNetwork,
-      maskInputs: capture?.maskInputs,
-      consoleErrors: capture?.consoleErrors,
+      capture?.windowMs,
+      capture?.recordReplay,
+      capture?.recordNetwork,
+      capture?.maskInputs,
+      capture?.consoleErrors,
       endpoint,
-    });
-  }, [
-    appVersion,
-    capture?.windowMs,
-    capture?.recordReplay,
-    capture?.recordNetwork,
-    capture?.maskInputs,
-    capture?.consoleErrors,
-    endpoint,
-  ]);
-
-  captureRef.current = session;
+    ],
+  );
 
   useLayoutEffect(() => {
+    captureRef.current = session;
     if (captureEnabled) session.start();
     else {
       session.stop();
