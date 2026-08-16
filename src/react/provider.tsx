@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -130,21 +131,19 @@ export function FeedbackProvider({
   ]);
 
   captureRef.current = session;
-  if (typeof window !== "undefined") {
+
+  useLayoutEffect(() => {
     if (captureEnabled) session.start();
     else {
       session.stop();
       session.clear();
     }
-  }
-
-  useEffect(() => {
     return () => {
       session.stop();
       session.clear();
       if (captureRef.current === session) captureRef.current = null;
     };
-  }, [session]);
+  }, [session, captureEnabled]);
 
   useEffect(() => {
     return () => {
