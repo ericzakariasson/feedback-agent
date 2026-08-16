@@ -252,7 +252,7 @@ export function FeedbackProvider({
       const selection = await selectPageRegion();
       if (!selection || !mountedRef.current) return;
       const { captureRegionBlob } = await import("./capture/region");
-      const blob = await captureRegionBlob(selection.rect, selection.viewport);
+      const blob = await captureRegionBlob(selection.rect, selection.viewport, selection.scroll);
       if (!mountedRef.current) return;
       await addScreenshot(blob, `region-${new Date().toISOString()}.png`);
     } catch (err) {

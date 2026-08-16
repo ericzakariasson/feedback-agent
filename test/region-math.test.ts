@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cropRectToBitmap } from "../src/react/capture/region-math";
+import { cropRectToBitmap, viewportCaptureTransform } from "../src/react/capture/region-math";
 
 describe("cropRectToBitmap", () => {
   it("maps a 1:1 viewport selection onto the bitmap", () => {
@@ -20,6 +20,11 @@ describe("cropRectToBitmap", () => {
         { width: 1600, height: 1200 },
       ),
     ).toEqual({ sx: 20, sy: 40, sw: 200, sh: 100 });
+  });
+
+  it("translates the document-origin raster by the selection-time scroll", () => {
+    expect(viewportCaptureTransform({ x: 0, y: 0 })).toBe("translate(0px, 0px)");
+    expect(viewportCaptureTransform({ x: 40, y: 1000 })).toBe("translate(-40px, -1000px)");
   });
 
   it("clamps a selection that would run past the bitmap edge", () => {

@@ -15,6 +15,16 @@ export type ViewportSize = {
   height: number
 }
 
+export type ScrollOffset = {
+  x: number
+  y: number
+}
+
+/** Shift a document-origin raster so the visible viewport sits at (0, 0). */
+export function viewportCaptureTransform(scroll: ScrollOffset): string {
+  return `translate(${-scroll.x}px, ${-scroll.y}px)`;
+}
+
 /**
  * Map a viewport-space selection onto a viewport-sized bitmap.
  * Region capture rasters the visible viewport, so the selection is scaled by

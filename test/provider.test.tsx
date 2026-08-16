@@ -154,6 +154,7 @@ describe("FeedbackProvider", () => {
     select.mockResolvedValueOnce({
       rect: { x: 10, y: 20, width: 80, height: 40 },
       viewport: { width: 800, height: 600 },
+      scroll: { x: 0, y: 240 },
     });
     crop.mockResolvedValueOnce(new Blob(["png"], { type: "image/png" }));
 
@@ -185,6 +186,7 @@ describe("FeedbackProvider", () => {
     expect(crop).toHaveBeenCalledWith(
       { x: 10, y: 20, width: 80, height: 40 },
       { width: 800, height: 600 },
+      { x: 0, y: 240 },
     );
     expect(text("selecting")).toBe("no");
   });

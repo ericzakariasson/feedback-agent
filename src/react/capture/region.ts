@@ -1,5 +1,5 @@
 import { CLIENT_LIMITS } from "../../shared/limits";
-import { cropRectToBitmap, type RegionRect } from "./region-math";
+import { cropRectToBitmap, viewportCaptureTransform, type RegionRect } from "./region-math";
 import { removeRegionOverlay } from "./region-overlay";
 
 function excludeFeedbackNodes(node: Node): boolean {
@@ -10,6 +10,7 @@ function excludeFeedbackNodes(node: Node): boolean {
 export async function captureRegionBlob(
   rect: RegionRect,
   viewport: { width: number; height: number },
+  scroll: { x: number; y: number },
 ): Promise<Blob> {
   if (typeof document === "undefined") {
     throw new Error("Region capture requires a document");
@@ -21,6 +22,7 @@ export async function captureRegionBlob(
     pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
     width: Math.max(1, Math.round(viewport.width)),
     height: Math.max(1, Math.round(viewport.height)),
+    style: { transform: viewportCaptureTransform(scroll) },
     filter: excludeFeedbackNodes,
   });
   const response = await fetch(dataUrl);

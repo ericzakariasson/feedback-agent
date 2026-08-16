@@ -5,6 +5,7 @@ export const REGION_HOST_ID = "__fw_region_root";
 export type RegionSelection = {
   rect: RegionRect
   viewport: { width: number; height: number }
+  scroll: { x: number; y: number }
 }
 
 /**
@@ -261,6 +262,7 @@ function installRegionOverlay(done: (selection: RegionSelection | null) => void)
     finish({
       rect: { x, y, width, height },
       viewport: { width: window.innerWidth, height: window.innerHeight },
+      scroll: { x: window.scrollX, y: window.scrollY },
     });
   }
 
