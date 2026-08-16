@@ -6,6 +6,7 @@ import {
   sanitizeNetworkUrl,
   shouldIgnoreNetworkUrl,
 } from "../src/react/capture/network";
+import { CLIENT_LIMITS } from "../src/shared/limits";
 
 describe("shouldIgnoreNetworkUrl", () => {
   it("skips data and blob URLs", () => {
@@ -30,10 +31,34 @@ describe("sanitizeNetworkUrl", () => {
   });
 });
 
-describe("attachNetworkListeners", () => {
-  it("records a completed request and ignores the feedback endpoint", () => {
+describe("NetworkLog", () => {
+  it("keeps at most the newest maxNetworkEntries in-window rows", () => {
     const log = new NetworkLog(60_000);
-    const listeners: Record<string, (event: { request: { method: string; url: string }; requestId: string; response: { status: number } }) => void> = {};
+    for (let i = 0; i < CLIENT_LIMITS.maxNetworkEntries * 2 + 1; i += 1) {
+      log.upsert(String(i), {
+        timestamp: new Date().toISOString(),
+        method: "GET",
+        url: `https://app.example.com/api/${i}`,
+      });
+    }
+    const snap = log.snapshot();
+    expect(snap).toHaveLength(CLIENT_LIMITS.maxNetworkEntries);
+    expect(snap[0]?.url).toContain("/api/41");
+    expect(snap.at(-1)?.url).toContain("/api/80");
+  });
+});
+
+describe("attachNetworkListeners", () => {
+  it("records a request with no response and updates it when the response arrives", () => {
+    const log = new NetworkLog(60_000);
+    const listeners: Record<
+      string,
+      (event: {
+        request: { method: string; url: string }
+        requestId: string
+        response?: { status: number }
+      }) => void
+    > = {};
     attachNetworkListeners(
       {
         on(event, listener) {
@@ -45,9 +70,20 @@ describe("attachNetworkListeners", () => {
     );
 
     listeners.request?.({
+      request: { method: "get", url: "/api/orders" },
+      requestId: "pending",
+    });
+    expect(log.snapshot()).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        url: expect.stringContaining("/api/orders"),
+      }),
+    ]);
+    expect(log.snapshot()[0]).not.toHaveProperty("status");
+
+    listeners.request?.({
       request: { method: "get", url: "/api/invoices" },
       requestId: "1",
-      response: { status: 0 },
     });
     listeners.response?.({
       request: { method: "get", url: "/api/invoices" },
@@ -57,7 +93,6 @@ describe("attachNetworkListeners", () => {
     listeners.request?.({
       request: { method: "post", url: "/api/feedback" },
       requestId: "2",
-      response: { status: 0 },
     });
     listeners.response?.({
       request: { method: "post", url: "/api/feedback" },
@@ -65,16 +100,21 @@ describe("attachNetworkListeners", () => {
       response: { status: 202 },
     });
 
-    const [entry] = log.snapshot();
-    expect(entry).toEqual(
+    const snap = log.snapshot();
+    expect(snap).toHaveLength(2);
+    expect(snap).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        url: expect.stringContaining("/api/orders"),
+      }),
       expect.objectContaining({
         method: "GET",
         url: expect.stringContaining("/api/invoices"),
         status: 500,
       }),
-    );
-    expect(entry).not.toHaveProperty("body");
-    expect(Object.keys(entry ?? {}).sort()).toEqual(
+    ]);
+    expect(snap[1]).not.toHaveProperty("body");
+    expect(Object.keys(snap[1] ?? {}).sort()).toEqual(
       ["durationMs", "method", "status", "timestamp", "url"].sort(),
     );
   });

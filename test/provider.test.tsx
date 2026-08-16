@@ -12,7 +12,7 @@ vi.mock("../src/react/capture/collage", () => ({
 }));
 
 vi.mock("../src/react/capture/network-browser", () => ({
-  startBrowserNetworkLog: async () => () => undefined,
+  startBrowserNetworkLog: () => () => undefined,
 }));
 
 const originalFetch = globalThis.fetch;

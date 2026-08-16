@@ -139,7 +139,7 @@ type FeedbackCaptureConfig = {
 | `recordReplay` | `boolean` | `true` | Record an rrweb DOM replay. `false` skips replay entirely — nothing is recorded or uploaded. |
 | `maskInputs` | `boolean` | `true` | When `true`, rrweb masks **all** typed input values in the replay (`maskAllInputs`). Password, email, and tel are always masked, even when this is `false`. Does not affect the written feedback message. |
 | `consoleErrors` | `boolean` | `false` | When `true`, also store `console.error` output in the session. `window.onerror` and unhandled rejections are always captured. |
-| `recordNetwork` | `boolean` | `true` | Intercept fetch/XHR with [`@mswjs/interceptors`](https://github.com/mswjs/interceptors). Logs stay in memory until the user checks **Include network requests**. |
+| `recordNetwork` | `boolean` | `true` | Intercept fetch/XHR with [`@mswjs/interceptors`](https://github.com/mswjs/interceptors). Logs stay in memory until the user checks **Include network requests**. `false` skips interception and hides the checkbox. |
 
 Capture restarts if these options change.
 

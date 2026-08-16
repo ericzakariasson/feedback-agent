@@ -69,7 +69,7 @@ describe("validatePayload", () => {
             {
               timestamp: "2026-07-31T08:03:41.000Z",
               method: "get",
-              url: "https://app.example.com/api/invoices",
+              url: "https://app.example.com/me?access_token=abc123&page=2",
               status: 500,
               durationMs: 42,
               body: "secret-payload",
@@ -86,7 +86,7 @@ describe("validatePayload", () => {
       {
         timestamp: "2026-07-31T08:03:41.000Z",
         method: "GET",
-        url: "https://app.example.com/api/invoices",
+        url: "https://app.example.com/me?access_token=%5Bredacted%5D&page=2",
         status: 500,
         durationMs: 42,
       },

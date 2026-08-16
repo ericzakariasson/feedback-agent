@@ -98,6 +98,7 @@ export function FeedbackProvider({
   const [result, setResult] = useState<FeedbackSubmitResult | null>(null);
   const [captureEnabled, setCaptureEnabledState] = useState(capture?.enabled ?? true);
   const [includeNetwork, setIncludeNetwork] = useState(false);
+  const recordNetwork = capture?.recordNetwork !== false;
   screenshotsRef.current = screenshots;
 
   useEffect(() => {
@@ -106,8 +107,10 @@ export function FeedbackProvider({
     }
   }, [capture?.enabled]);
 
-  useEffect(() => {
-    const session = new SessionCapture({
+  const session = useMemo(() => {
+    captureRef.current?.stop();
+    captureRef.current?.clear();
+    return new SessionCapture({
       appVersion,
       windowMs: capture?.windowMs,
       recordReplay: capture?.recordReplay,
@@ -116,14 +119,6 @@ export function FeedbackProvider({
       consoleErrors: capture?.consoleErrors,
       endpoint,
     });
-    captureRef.current = session;
-    if (captureEnabled) session.start();
-    else session.clear();
-    return () => {
-      session.stop();
-      session.clear();
-      captureRef.current = null;
-    };
   }, [
     appVersion,
     capture?.windowMs,
@@ -132,8 +127,24 @@ export function FeedbackProvider({
     capture?.maskInputs,
     capture?.consoleErrors,
     endpoint,
-    captureEnabled,
   ]);
+
+  captureRef.current = session;
+  if (typeof window !== "undefined") {
+    if (captureEnabled) session.start();
+    else {
+      session.stop();
+      session.clear();
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      session.stop();
+      session.clear();
+      if (captureRef.current === session) captureRef.current = null;
+    };
+  }, [session]);
 
   useEffect(() => {
     return () => {
@@ -368,6 +379,7 @@ export function FeedbackProvider({
       setCaptureEnabled,
       includeNetwork,
       setIncludeNetwork,
+      recordNetwork,
       submit,
       track,
       reset,
@@ -391,6 +403,7 @@ export function FeedbackProvider({
       captureEnabled,
       setCaptureEnabled,
       includeNetwork,
+      recordNetwork,
       submit,
       track,
       reset,

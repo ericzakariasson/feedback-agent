@@ -26,6 +26,7 @@ export interface FeedbackContextValue {
   setCaptureEnabled: (enabled: boolean) => void
   includeNetwork: boolean
   setIncludeNetwork: (enabled: boolean) => void
+  recordNetwork: boolean
   submit: () => Promise<void>
   track: (name: string, props?: Record<string, unknown>) => void
   reset: () => void

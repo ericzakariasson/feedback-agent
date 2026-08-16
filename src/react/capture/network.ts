@@ -1,26 +1,14 @@
 import { CLIENT_LIMITS } from "../../shared/limits";
-import { redactText } from "../../shared/redact";
+import { sanitizeNetworkUrl } from "../../shared/network-url";
 import type { NetworkEntry } from "../../shared/types";
 
-const SECRET_QUERY = /(token|key|secret|auth|password|passwd|session|code|jwt|sig)/i;
+type StoredNetworkEntry = NetworkEntry & { requestId: string };
 
 export function shouldIgnoreNetworkUrl(url: string, endpoint?: string): boolean {
   if (!url) return true;
   if (url.startsWith("data:") || url.startsWith("blob:")) return true;
   if (endpoint && isFeedbackEndpoint(url, endpoint)) return true;
   return false;
-}
-
-export function sanitizeNetworkUrl(url: string): string {
-  try {
-    const parsed = new URL(url, "http://localhost");
-    for (const key of [...parsed.searchParams.keys()]) {
-      if (SECRET_QUERY.test(key)) parsed.searchParams.set(key, "[redacted]");
-    }
-    return redactText(parsed.toString(), 300);
-  } catch {
-    return redactText(url, 300);
-  }
 }
 
 export function isFeedbackEndpoint(url: string, endpoint: string): boolean {
@@ -35,20 +23,30 @@ export function isFeedbackEndpoint(url: string, endpoint: string): boolean {
 }
 
 export class NetworkLog {
-  private entries: NetworkEntry[] = [];
+  private entries: StoredNetworkEntry[] = [];
 
   constructor(private readonly windowMs: number) {}
 
-  record(entry: NetworkEntry): void {
-    this.entries.push(entry);
-    if (this.entries.length > CLIENT_LIMITS.maxNetworkEntries * 2) {
-      this.trim(Date.now());
+  upsert(requestId: string, entry: NetworkEntry): void {
+    const index = this.entries.findIndex((item) => item.requestId === requestId);
+    if (index >= 0) {
+      this.entries[index] = { ...this.entries[index], ...entry, requestId };
+    } else {
+      this.entries.push({ ...entry, requestId });
     }
+    this.trim(Date.now());
+  }
+
+  get(requestId: string): NetworkEntry | undefined {
+    const found = this.entries.find((item) => item.requestId === requestId);
+    if (!found) return undefined;
+    const { requestId: _id, ...entry } = found;
+    return entry;
   }
 
   snapshot(): NetworkEntry[] {
     this.trim(Date.now());
-    return this.entries.slice(-CLIENT_LIMITS.maxNetworkEntries);
+    return this.entries.map(({ requestId: _id, ...entry }) => entry);
   }
 
   clear(): void {
@@ -58,6 +56,9 @@ export class NetworkLog {
   private trim(now: number): void {
     const cutoff = now - this.windowMs;
     this.entries = this.entries.filter((item) => Date.parse(item.timestamp) >= cutoff);
+    if (this.entries.length > CLIENT_LIMITS.maxNetworkEntries) {
+      this.entries = this.entries.slice(-CLIENT_LIMITS.maxNetworkEntries);
+    }
   }
 }
 
@@ -68,28 +69,24 @@ export function attachNetworkListeners(
   log: NetworkLog,
   endpoint?: string,
 ): void {
-  const pending = new Map<string, { at: number; method: string; url: string }>();
-
   interceptor.on("request", ({ request, requestId }) => {
     if (shouldIgnoreNetworkUrl(request.url, endpoint)) return;
-    pending.set(requestId, {
-      at: Date.now(),
-      method: request.method,
-      url: request.url,
+    log.upsert(requestId, {
+      timestamp: new Date().toISOString(),
+      method: request.method.toUpperCase(),
+      url: sanitizeNetworkUrl(request.url),
     });
   });
 
   interceptor.on("response", ({ request, requestId, response }) => {
-    const started = pending.get(requestId);
-    pending.delete(requestId);
-    const url = started?.url ?? request.url;
-    if (shouldIgnoreNetworkUrl(url, endpoint)) return;
-    log.record({
-      timestamp: new Date().toISOString(),
+    const started = log.get(requestId);
+    if (shouldIgnoreNetworkUrl(request.url, endpoint) && !started) return;
+    log.upsert(requestId, {
+      timestamp: started?.timestamp ?? new Date().toISOString(),
       method: (started?.method ?? request.method).toUpperCase(),
-      url: sanitizeNetworkUrl(url),
+      url: sanitizeNetworkUrl(request.url),
       status: response?.status,
-      durationMs: started ? Math.max(0, Date.now() - started.at) : undefined,
+      durationMs: started ? Math.max(0, Date.now() - Date.parse(started.timestamp)) : undefined,
     });
   });
 }
@@ -99,3 +96,5 @@ export type NetworkHookEvent = {
   requestId: string
   response?: { status: number }
 }
+
+export { sanitizeNetworkUrl };

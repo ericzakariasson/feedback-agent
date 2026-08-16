@@ -3,10 +3,10 @@ import { FetchInterceptor } from "@mswjs/interceptors/fetch";
 import { XMLHttpRequestInterceptor } from "@mswjs/interceptors/XMLHttpRequest";
 import { attachNetworkListeners, type NetworkHookEvent, type NetworkLog } from "./network";
 
-export async function startBrowserNetworkLog(
+export function startBrowserNetworkLog(
   log: NetworkLog,
   endpoint?: string,
-): Promise<() => void> {
+): () => void {
   const interceptor = new BatchInterceptor({
     name: "feedback-agent-network",
     interceptors: [new FetchInterceptor(), new XMLHttpRequestInterceptor()],

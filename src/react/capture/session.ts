@@ -8,6 +8,7 @@ import type {
   UrlEntry,
 } from "../../shared/types";
 import { NetworkLog } from "./network";
+import { startBrowserNetworkLog } from "./network-browser";
 
 export interface CaptureOptions {
   windowMs?: number
@@ -98,7 +99,7 @@ export class SessionCapture {
     this.watchErrors();
     if (this.consoleErrors) this.watchConsole();
     if (this.recordReplay) void this.startReplay();
-    if (this.recordNetwork) void this.startNetwork();
+    if (this.recordNetwork) this.startNetwork();
   }
 
   stop(): void {
@@ -376,11 +377,10 @@ export class SessionCapture {
     }
   }
 
-  private async startNetwork(): Promise<void> {
+  private startNetwork(): void {
     const token = this.networkToken;
     try {
-      const { startBrowserNetworkLog } = await import("./network-browser");
-      const stop = await startBrowserNetworkLog(this.network, this.endpoint);
+      const stop = startBrowserNetworkLog(this.network, this.endpoint);
       if (this.networkToken !== token || !this.started) {
         stop();
         return;

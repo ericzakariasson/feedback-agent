@@ -2,6 +2,7 @@ import {
   ALLOWED_IMAGE_TYPES,
   DEFAULT_LIMITS,
 } from "../shared/limits";
+import { sanitizeNetworkUrl } from "../shared/network-url";
 import type {
   Breadcrumb,
   FeedbackPayload,
@@ -245,7 +246,7 @@ function parseSession(
         const item: NetworkEntry = {
           timestamp,
           method: method.slice(0, 16).toUpperCase(),
-          url: url.slice(0, 300),
+          url: sanitizeNetworkUrl(url).slice(0, 300),
           status: typeof entry.status === "number" ? entry.status : undefined,
           durationMs: typeof entry.durationMs === "number" ? entry.durationMs : undefined,
         };
