@@ -14,6 +14,7 @@ This is **not** a GDPR/CCPA compliance product. You are the data controller for 
 | `console.error` | off | Enable only if you accept log PII |
 | rrweb DOM replay | on | Input masking on; password/email/tel always masked |
 | User screenshots | opt-in | Upload / paste / `captureScreenshot()` |
+| Network (fetch / XHR) | recorded in memory; sent only if the user checks **Include network requests** | Method, URL, status, duration. No bodies. Query tokens redacted. Feedback POST is skipped. |
 | Auto `viewport.png` | on submit if no user shots | Live page at submit |
 | Auto `replay-collage.jpg` | best-effort | Replay frames |
 | Identity | never from the browser | Put trusted ids in `enrich` only |

@@ -7,6 +7,7 @@ import type {
   FeedbackPayload,
   ScreenshotPayload,
   SessionBundle,
+  NetworkEntry,
   SessionError,
   UrlEntry,
 } from "../shared/types";
@@ -234,6 +235,24 @@ function parseSession(
       })
     : [];
 
+  const network = Array.isArray(input.network)
+    ? input.network.slice(-limits.maxNetworkEntries).flatMap((entry) => {
+        if (!isRecord(entry)) return [];
+        const timestamp = asNonEmptyString(entry.timestamp);
+        const method = asNonEmptyString(entry.method);
+        const url = asNonEmptyString(entry.url);
+        if (!timestamp || !method || !url) return [];
+        const item: NetworkEntry = {
+          timestamp,
+          method: method.slice(0, 16).toUpperCase(),
+          url: url.slice(0, 300),
+          status: typeof entry.status === "number" ? entry.status : undefined,
+          durationMs: typeof entry.durationMs === "number" ? entry.durationMs : undefined,
+        };
+        return [item];
+      })
+    : undefined;
+
   let replay: SessionBundle["replay"];
   if (input.replay != null) {
     if (!isRecord(input.replay)) return { ok: false, error: "session.replay is invalid" };
@@ -260,6 +279,7 @@ function parseSession(
       breadcrumbs,
       errors,
       replay,
+      network,
       metadata: {
         viewport: { width: viewportWidth, height: viewportHeight },
         locale: typeof metadataRecord.locale === "string" ? metadataRecord.locale : undefined,

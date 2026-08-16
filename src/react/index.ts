@@ -16,5 +16,6 @@ export type {
   FeedbackHandlerSuccess,
   SessionBundle,
   Breadcrumb,
+  NetworkEntry,
   ScreenshotPayload,
 } from "../shared/types";

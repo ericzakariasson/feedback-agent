@@ -94,6 +94,8 @@ export function FeedbackWidget({
     error,
     feedbackId,
     result,
+    includeNetwork,
+    setIncludeNetwork,
     submit,
     reset,
   } = useFeedback();
@@ -483,6 +485,15 @@ export function FeedbackWidget({
                     </label>
                   ) : null}
                 </div>
+                <label className="fw-inspect-toggle">
+                  <input
+                    type="checkbox"
+                    checked={includeNetwork}
+                    disabled={submitting}
+                    onChange={(event) => setIncludeNetwork(event.target.checked)}
+                  />
+                  Include network requests
+                </label>
                 <div className="fw-meta">
                   <p className="fw-hint">Upload or paste a screenshot.</p>
                   {showMessageCount ? (

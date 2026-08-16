@@ -97,6 +97,7 @@ export function FeedbackProvider({
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [result, setResult] = useState<FeedbackSubmitResult | null>(null);
   const [captureEnabled, setCaptureEnabledState] = useState(capture?.enabled ?? true);
+  const [includeNetwork, setIncludeNetwork] = useState(false);
   screenshotsRef.current = screenshots;
 
   useEffect(() => {
@@ -110,8 +111,10 @@ export function FeedbackProvider({
       appVersion,
       windowMs: capture?.windowMs,
       recordReplay: capture?.recordReplay,
+      recordNetwork: capture?.recordNetwork,
       maskInputs: capture?.maskInputs,
       consoleErrors: capture?.consoleErrors,
+      endpoint,
     });
     captureRef.current = session;
     if (captureEnabled) session.start();
@@ -125,8 +128,10 @@ export function FeedbackProvider({
     appVersion,
     capture?.windowMs,
     capture?.recordReplay,
+    capture?.recordNetwork,
     capture?.maskInputs,
     capture?.consoleErrors,
+    endpoint,
     captureEnabled,
   ]);
 
@@ -253,6 +258,7 @@ export function FeedbackProvider({
     setError(null);
     setFeedbackId(null);
     setResult(null);
+    setIncludeNetwork(false);
   }, []);
 
   const submit = useCallback(async () => {
@@ -306,7 +312,7 @@ export function FeedbackProvider({
         sessionId: session.id,
         message: trimmed,
         screenshots: shots,
-        session,
+        session: includeNetwork ? session : { ...session, network: undefined },
         submittedAt: new Date().toISOString(),
       };
 
@@ -338,7 +344,7 @@ export function FeedbackProvider({
       setStatus("error");
       setError(err instanceof Error ? err.message : "Could not send feedback.");
     }
-  }, [endpoint, message, screenshots]);
+  }, [endpoint, includeNetwork, message, screenshots]);
 
   const value = useMemo(
     () => ({
@@ -360,6 +366,8 @@ export function FeedbackProvider({
       result,
       captureEnabled,
       setCaptureEnabled,
+      includeNetwork,
+      setIncludeNetwork,
       submit,
       track,
       reset,
@@ -382,6 +390,7 @@ export function FeedbackProvider({
       result,
       captureEnabled,
       setCaptureEnabled,
+      includeNetwork,
       submit,
       track,
       reset,

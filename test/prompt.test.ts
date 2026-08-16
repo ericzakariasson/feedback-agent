@@ -23,6 +23,27 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("Attached images");
   });
 
+  it("lists opted-in network requests", () => {
+    const prompt = buildAgentPrompt({
+      feedbackId: "evt_123",
+      payload: samplePayload({
+        session: sampleSession({
+          network: [
+            {
+              timestamp: "2026-07-31T08:03:41.000Z",
+              method: "GET",
+              url: "https://app.example.com/api/invoices",
+              status: 500,
+              durationMs: 42,
+            },
+          ],
+        }),
+      }),
+    });
+    expect(prompt).toContain("## Network");
+    expect(prompt).toContain("GET 500 https://app.example.com/api/invoices · 42ms");
+  });
+
   it("includes every replay event as a readable timeline", () => {
     const prompt = buildAgentPrompt({
       feedbackId: "evt_123",

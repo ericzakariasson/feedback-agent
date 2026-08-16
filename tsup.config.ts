@@ -16,7 +16,17 @@ export default defineConfig([
     splitting: false,
     sourcemap: true,
     treeshake: true,
-    external: ["react", "react-dom", "react/jsx-runtime", "@rrweb/record", "html-to-image", "rrweb"],
+    external: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "@rrweb/record",
+      "html-to-image",
+      "rrweb",
+      "@mswjs/interceptors",
+      "@mswjs/interceptors/fetch",
+      "@mswjs/interceptors/XMLHttpRequest",
+    ],
     clean: true,
     async onSuccess() {
       prependUseClient("dist/react/index.js");

@@ -7,13 +7,16 @@ import type {
   SessionError,
   UrlEntry,
 } from "../../shared/types";
+import { NetworkLog } from "./network";
 
 export interface CaptureOptions {
   windowMs?: number
   recordReplay?: boolean
+  recordNetwork?: boolean
   maskInputs?: boolean
   consoleErrors?: boolean
   appVersion?: string
+  endpoint?: string
 }
 
 const MAX_BREADCRUMBS = 100;
@@ -57,14 +60,19 @@ export class SessionCapture {
   readonly startedAt: number;
   private readonly windowMs: number;
   private readonly recordReplay: boolean;
+  private readonly recordNetwork: boolean;
   private readonly maskInputs: boolean;
   private readonly consoleErrors: boolean;
   private readonly appVersion?: string;
+  private readonly endpoint?: string;
   private breadcrumbs: Breadcrumb[] = [];
   private errors: SessionError[] = [];
   private urlHistory: UrlEntry[] = [];
   private replayEvents: { timestamp: number; event: unknown }[] = [];
   private stopReplay: (() => void) | null = null;
+  private stopNetwork: (() => void) | null = null;
+  private networkToken = 0;
+  private network: NetworkLog;
   private unsubs: Array<() => void> = [];
   private started = false;
 
@@ -73,9 +81,12 @@ export class SessionCapture {
     this.startedAt = Date.now();
     this.windowMs = options.windowMs ?? CLIENT_LIMITS.captureWindowMs;
     this.recordReplay = options.recordReplay ?? true;
+    this.recordNetwork = options.recordNetwork ?? true;
     this.maskInputs = options.maskInputs ?? true;
     this.consoleErrors = options.consoleErrors ?? false;
     this.appVersion = options.appVersion;
+    this.endpoint = options.endpoint;
+    this.network = new NetworkLog(this.windowMs);
   }
 
   start(): void {
@@ -87,6 +98,7 @@ export class SessionCapture {
     this.watchErrors();
     if (this.consoleErrors) this.watchConsole();
     if (this.recordReplay) void this.startReplay();
+    if (this.recordNetwork) void this.startNetwork();
   }
 
   stop(): void {
@@ -94,6 +106,9 @@ export class SessionCapture {
     this.unsubs = [];
     this.stopReplay?.();
     this.stopReplay = null;
+    this.networkToken += 1;
+    this.stopNetwork?.();
+    this.stopNetwork = null;
     this.started = false;
   }
 
@@ -102,6 +117,7 @@ export class SessionCapture {
     this.errors = [];
     this.urlHistory = [];
     this.replayEvents = [];
+    this.network.clear();
   }
 
   track(name: string, props?: Record<string, unknown>): void {
@@ -135,6 +151,7 @@ export class SessionCapture {
             truncated,
           }
         : undefined,
+      network: this.recordNetwork ? this.network.snapshot() : undefined,
       metadata: this.metadata(),
     };
   }
@@ -356,6 +373,21 @@ export class SessionCapture {
       }) ?? null;
     } catch {
       this.stopReplay = null;
+    }
+  }
+
+  private async startNetwork(): Promise<void> {
+    const token = this.networkToken;
+    try {
+      const { startBrowserNetworkLog } = await import("./network-browser");
+      const stop = await startBrowserNetworkLog(this.network, this.endpoint);
+      if (this.networkToken !== token || !this.started) {
+        stop();
+        return;
+      }
+      this.stopNetwork = stop;
+    } catch {
+      if (this.networkToken === token) this.stopNetwork = null;
     }
   }
 }

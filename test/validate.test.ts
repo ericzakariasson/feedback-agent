@@ -60,6 +60,38 @@ describe("validatePayload", () => {
     expect(result.payload.session.urlHistory).toHaveLength(1);
     expect(result.payload.session).not.toHaveProperty("extra");
   });
+
+  it("keeps sanitized network entries and drops invalid ones", () => {
+    const result = validatePayload(
+      samplePayload({
+        session: sampleSession({
+          network: [
+            {
+              timestamp: "2026-07-31T08:03:41.000Z",
+              method: "get",
+              url: "https://app.example.com/api/invoices",
+              status: 500,
+              durationMs: 42,
+              body: "secret-payload",
+            },
+            { timestamp: "", method: "GET", url: "https://app.example.com/bad" } as never,
+          ],
+        }),
+      }),
+      { ...DEFAULT_LIMITS },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.payload.session.network).toEqual([
+      {
+        timestamp: "2026-07-31T08:03:41.000Z",
+        method: "GET",
+        url: "https://app.example.com/api/invoices",
+        status: 500,
+        durationMs: 42,
+      },
+    ]);
+  });
 });
 
 describe("clientKey", () => {

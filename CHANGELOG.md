@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Widget checkbox **Include network requests** — opt-in attach of fetch/XHR captured with [`@mswjs/interceptors`](https://github.com/mswjs/interceptors)
+- `useFeedback().includeNetwork` / `setIncludeNetwork`
+- `capture.recordNetwork` (default `true`) to disable interception entirely
+
 ## 0.3.0 — 2026-08-06
 
 Preview cut that matches this repository. Previous npm `0.1.0` did not include the prompt hook or the hardening below.

@@ -11,6 +11,10 @@ vi.mock("../src/react/capture/collage", () => ({
   buildReplayCollage: async () => null,
 }));
 
+vi.mock("../src/react/capture/network-browser", () => ({
+  startBrowserNetworkLog: async () => () => undefined,
+}));
+
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
@@ -21,6 +25,17 @@ afterEach(() => {
 
 function text(testId: string): string {
   return screen.getByTestId(testId).textContent ?? "";
+}
+
+async function postedBody(mock: ReturnType<typeof vi.fn>): Promise<Record<string, unknown>> {
+  const [input, init] = mock.mock.calls[0] ?? [];
+  if (init && typeof init === "object" && "body" in init && init.body != null) {
+    return JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>;
+  }
+  if (input instanceof Request) {
+    return (await input.json()) as Record<string, unknown>;
+  }
+  throw new Error("fetch was not called with a JSON body");
 }
 
 function Probe() {
@@ -76,9 +91,56 @@ describe("FeedbackProvider", () => {
     expect(text("dryRun")).toBe("yes");
     expect(text("dispatched")).toBe("no");
     expect(fetchMock).toHaveBeenCalledOnce();
-    const sent = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body));
+    const sent = await postedBody(fetchMock);
     expect(sent.message).toContain("save button");
     expect(sent.sessionId).toBeTruthy();
+    expect((sent.session as { network?: unknown }).network).toBeUndefined();
+  });
+
+  it("attaches network logs only when includeNetwork is on", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ ok: true, dispatched: false, dryRun: true, feedbackId: "evt_net" }),
+        { status: 202 },
+      ),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    function NetworkProbe() {
+      const { message, setMessage, submit, includeNetwork, setIncludeNetwork } = useFeedback();
+      return (
+        <div>
+          <label>
+            message
+            <textarea value={message} onChange={(event) => setMessage(event.target.value)} />
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={includeNetwork}
+              onChange={(event) => setIncludeNetwork(event.target.checked)}
+            />
+            Include network requests
+          </label>
+          <button type="button" onClick={() => void submit()}>
+            send
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <FeedbackProvider endpoint="/api/feedback">
+        <NetworkProbe />
+      </FeedbackProvider>,
+    );
+
+    await userEvent.type(screen.getByLabelText("message"), "Checkout 500s");
+    await userEvent.click(screen.getByLabelText("Include network requests"));
+    await userEvent.click(screen.getByRole("button", { name: "send" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    const sent = await postedBody(fetchMock);
+    expect((sent.session as { network?: unknown }).network).toEqual([]);
   });
 
   it("rejects an empty message without calling fetch", async () => {

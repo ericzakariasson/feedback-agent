@@ -29,6 +29,14 @@ export interface UrlEntry {
   timestamp: string
 }
 
+export interface NetworkEntry {
+  timestamp: string
+  method: string
+  url: string
+  status?: number
+  durationMs?: number
+}
+
 export interface SessionReplay {
   format: "rrweb"
   events: unknown[]
@@ -55,6 +63,7 @@ export interface SessionBundle {
   breadcrumbs: Breadcrumb[]
   errors: SessionError[]
   replay?: SessionReplay
+  network?: NetworkEntry[]
   metadata: SessionMetadata
 }
 

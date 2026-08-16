@@ -128,22 +128,24 @@ type FeedbackCaptureConfig = {
   recordReplay?: boolean
   maskInputs?: boolean
   consoleErrors?: boolean
+  recordNetwork?: boolean
 }
 ```
 
 | Option | Type | Default | Effect |
 | --- | --- | --- | --- |
 | `enabled` | `boolean` | `true` | When `false`, nothing is recorded until `setCaptureEnabled(true)`. Disabling clears the in-memory window. Production recipe: gate on consent or auth. |
-| `windowMs` | `number` | `300000` (5 min) | Rolling lookback. Breadcrumbs, errors, URL history, and replay events older than this are dropped on snapshot/submit. |
+| `windowMs` | `number` | `300000` (5 min) | Rolling lookback. Breadcrumbs, errors, URL history, network entries, and replay events older than this are dropped on snapshot/submit. |
 | `recordReplay` | `boolean` | `true` | Record an rrweb DOM replay. `false` skips replay entirely — nothing is recorded or uploaded. |
 | `maskInputs` | `boolean` | `true` | When `true`, rrweb masks **all** typed input values in the replay (`maskAllInputs`). Password, email, and tel are always masked, even when this is `false`. Does not affect the written feedback message. |
 | `consoleErrors` | `boolean` | `false` | When `true`, also store `console.error` output in the session. `window.onerror` and unhandled rejections are always captured. |
+| `recordNetwork` | `boolean` | `true` | Intercept fetch/XHR with [`@mswjs/interceptors`](https://github.com/mswjs/interceptors). Logs stay in memory until the user checks **Include network requests**. |
 
 Capture restarts if these options change.
 
 ### `<FeedbackWidget />`
 
-Finished UI: floating trigger, sheet/modal, textarea, screenshots (upload + paste), submit, thanks. On submit the client may also attach auto visuals the user never picked — see [Visuals](#visuals).
+Finished UI: floating trigger, sheet/modal, textarea, screenshots (upload + paste), **Include network requests** checkbox, submit, thanks. On submit the client may also attach auto visuals the user never picked — see [Visuals](#visuals).
 
 | Prop | Type | Default |
 | --- | --- | --- |
@@ -173,6 +175,7 @@ const {
   screenshots, addScreenshot, removeScreenshot, captureScreenshot,
   status, error, feedbackId, result,
   captureEnabled, setCaptureEnabled,
+  includeNetwork, setIncludeNetwork,
   submit, track, reset,
   getSession, getDebugContext,
 } = useFeedback()
@@ -185,7 +188,8 @@ const {
 | `captureScreenshot()` | `() => Promise<void>` | PNG of `document.documentElement`, excludes the widget. Adds to the gallery (user slot). |
 | `submit()` | `() => Promise<void>` | sets `error` if message is empty. May append `viewport.png` + `replay-collage.jpg` (not shown in the gallery). |
 | `track(name, props?)` | `(name: string, props?: Record<string, unknown>) => void` | custom breadcrumb (redacted) |
-| `reset()` | `() => void` | clears message + screenshots + status |
+| `includeNetwork` | `boolean` | when `true`, submit attaches intercepted fetch/XHR (no bodies) |
+| `reset()` | `() => void` | clears message + screenshots + status + network checkbox |
 | `getSession()` | `() => SessionBundle \| null` | current bounded bundle |
 
 Custom trigger + default panel:
@@ -428,6 +432,7 @@ type FeedbackPayload = {
 - `breadcrumbs` — navigation, clicks on meaningful targets, `track`, errors
 - `errors` — `window.onerror`, `unhandledrejection`, optional `console.error`
 - `replay` — rrweb events (`format: "rrweb"`), compacted on the client (~800 cap)
+- `network` — fetch/XHR via `@mswjs/interceptors` (method, URL, status, duration). Present on submit only if the user checked **Include network requests**
 - `metadata` — viewport, locale, timezone, userAgent, platform, `appVersion`
 
 ---
@@ -632,6 +637,7 @@ Client and server share these defaults:
 | Session bundle (serialized) | 400 KB |
 | Replay events (client) | 800 |
 | Breadcrumbs / errors / URL history in prompt | 80 / 30 / 20 |
+| Network entries | 40 |
 | Enrichment JSON in prompt | 4,000 chars |
 | Full prompt | 250,000 chars |
 | Rate limit | 8 / 10 min / IP |

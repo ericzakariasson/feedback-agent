@@ -7,6 +7,7 @@ export const DEFAULT_LIMITS = {
   maxBreadcrumbs: 80,
   maxErrors: 30,
   maxUrlHistory: 20,
+  maxNetworkEntries: 40,
   maxEnrichmentChars: 4_000,
   maxPromptChars: 250_000,
   rateLimitMax: 8,
@@ -21,6 +22,7 @@ export const CLIENT_LIMITS = {
   maxMessageChars: DEFAULT_LIMITS.maxMessageChars,
   captureWindowMs: 5 * 60 * 1000,
   maxReplayEvents: 800,
+  maxNetworkEntries: DEFAULT_LIMITS.maxNetworkEntries,
 } as const;
 
 export const ALLOWED_IMAGE_TYPES = [

@@ -31,6 +31,7 @@ export interface FeedbackHandlerLimits {
   maxBreadcrumbs?: number
   maxErrors?: number
   maxUrlHistory?: number
+  maxNetworkEntries?: number
   maxEnrichmentChars?: number
   maxPromptChars?: number
   rateLimitMax?: number

@@ -43,6 +43,15 @@ export function buildAgentPrompt(input: {
     .map((entry) => `- ${entry.timestamp} ${entry.href}${entry.title ? ` (${entry.title})` : ""}`)
     .join("\n");
 
+  const network = (session.network ?? [])
+    .slice(-25)
+    .map((entry) => {
+      const status = entry.status != null ? String(entry.status) : "pending";
+      const duration = entry.durationMs != null ? `${entry.durationMs}ms` : "";
+      return `- ${entry.timestamp} ${entry.method} ${status} ${entry.url}${duration ? ` · ${duration}` : ""}`;
+    })
+    .join("\n");
+
   const replay = session.replay
     ? formatReplaySection(session.replay)
     : "not captured";
@@ -78,6 +87,9 @@ ${breadcrumbs || "- none"}
 
 ## Errors
 ${errors || "- none"}
+
+## Network
+${network || "- none"}
 
 ## Session metadata
 ${truncateJson(session.metadata, 1_500)}
@@ -143,6 +155,7 @@ function boundSession(
     breadcrumbs: session.breadcrumbs?.slice(-limits.maxBreadcrumbs) ?? [],
     errors: session.errors?.slice(-limits.maxErrors) ?? [],
     urlHistory: session.urlHistory?.slice(-limits.maxUrlHistory) ?? [],
+    network: session.network?.slice(-limits.maxNetworkEntries),
     replay: session.replay
       ? {
           ...session.replay,

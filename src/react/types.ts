@@ -20,6 +20,8 @@ export interface FeedbackCaptureConfig {
   recordReplay?: boolean
   maskInputs?: boolean
   consoleErrors?: boolean
+  /** When false, fetch/XHR are not intercepted. Default true. */
+  recordNetwork?: boolean
 }
 
 export interface FeedbackProviderProps {
