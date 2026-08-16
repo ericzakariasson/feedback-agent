@@ -11,6 +11,14 @@ vi.mock("../src/react/capture/collage", () => ({
   buildReplayCollage: async () => null,
 }));
 
+vi.mock("../src/react/capture/region-overlay", () => ({
+  selectPageRegion: vi.fn(),
+}));
+
+vi.mock("../src/react/capture/region", () => ({
+  captureRegionBlob: vi.fn(),
+}));
+
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
@@ -129,5 +137,46 @@ describe("FeedbackProvider", () => {
     expect(text("capture")).toBe("on");
     await userEvent.click(screen.getByRole("button", { name: "toggle-capture" }));
     expect(text("capture")).toBe("off");
+  });
+
+  it("attaches a region capture and ignores cancel", async () => {
+    const { selectPageRegion } = await import("../src/react/capture/region-overlay");
+    const { captureRegionBlob } = await import("../src/react/capture/region");
+    const select = vi.mocked(selectPageRegion);
+    const crop = vi.mocked(captureRegionBlob);
+    select.mockResolvedValueOnce(null);
+    select.mockResolvedValueOnce({
+      rect: { x: 10, y: 20, width: 80, height: 40 },
+      viewport: { width: 800, height: 600 },
+    });
+    crop.mockResolvedValueOnce(new Blob(["png"], { type: "image/png" }));
+
+    function RegionProbe() {
+      const { captureRegionScreenshot, screenshots, isSelectingRegion } = useFeedback();
+      return (
+        <div>
+          <button type="button" onClick={() => void captureRegionScreenshot()}>
+            capture-region
+          </button>
+          <span data-testid="count">{String(screenshots.length)}</span>
+          <span data-testid="selecting">{isSelectingRegion ? "yes" : "no"}</span>
+        </div>
+      );
+    }
+
+    render(
+      <FeedbackProvider endpoint="/api/feedback">
+        <RegionProbe />
+      </FeedbackProvider>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "capture-region" }));
+    await waitFor(() => expect(text("count")).toBe("0"));
+    expect(crop).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "capture-region" }));
+    await waitFor(() => expect(text("count")).toBe("1"));
+    expect(crop).toHaveBeenCalledWith({ x: 10, y: 20, width: 80, height: 40 });
+    expect(text("selecting")).toBe("no");
   });
 });

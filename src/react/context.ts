@@ -16,6 +16,8 @@ export interface FeedbackContextValue {
   addScreenshot: (file: Blob, name?: string) => Promise<void>
   removeScreenshot: (id: string) => void
   captureScreenshot: () => Promise<void>
+  captureRegionScreenshot: () => Promise<void>
+  isSelectingRegion: boolean
   getDebugContext: (options?: { includeReplayEvents?: boolean }) => FeedbackDebugContext
   getSession: () => SessionBundle | null
   status: FeedbackStatus

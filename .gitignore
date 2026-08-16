@@ -24,4 +24,5 @@ blob-report/
 examples/next/.next/
 examples/next/tsconfig.tsbuildinfo
 demo/out/
+artifacts/
 

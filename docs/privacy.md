@@ -13,7 +13,7 @@ This is **not** a GDPR/CCPA compliance product. You are the data controller for 
 | `window.onerror` / unhandled rejections | on | Message + short stack, redacted |
 | `console.error` | off | Enable only if you accept log PII |
 | rrweb DOM replay | on | Input masking on; password/email/tel always masked |
-| User screenshots | opt-in | Upload / paste / `captureScreenshot()` |
+| User screenshots | opt-in | Capture region / upload / paste / `captureScreenshot()` |
 | Auto `viewport.png` | on submit if no user shots | Live page at submit |
 | Auto `replay-collage.jpg` | best-effort | Replay frames |
 | Identity | never from the browser | Put trusted ids in `enrich` only |

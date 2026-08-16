@@ -88,6 +88,8 @@ export function FeedbackWidget({
     screenshots,
     addScreenshot,
     removeScreenshot,
+    captureRegionScreenshot,
+    isSelectingRegion,
     getDebugContext,
     getSession,
     status,
@@ -134,7 +136,8 @@ export function FeedbackWidget({
   const preview = screenshots.find((shot) => shot.id === previewId) ?? null;
   const debugContext = debugEnabled && inspecting ? getDebugContext({ includeReplayEvents }) : null;
   const debugJson = debugContext ? JSON.stringify(debugContext, null, 2) : "";
-  const overlayOpen = present && entered;
+  const overlayOpen = present && entered && !isSelectingRegion;
+  const keepTriggerHidden = overlayOpen || isSelectingRegion;
 
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -206,6 +209,7 @@ export function FeedbackWidget({
     const previousActive = deepActiveElement();
     const previous = previousActive instanceof HTMLElement ? previousActive : null;
     const onKey = (event: KeyboardEvent) => {
+      if (isSelectingRegion) return;
       if (event.key === "Escape") {
         if (previewIdRef.current) {
           event.stopPropagation();
@@ -254,7 +258,7 @@ export function FeedbackWidget({
         previous.focus();
       } else triggerRef.current?.focus();
     };
-  }, [isOpen, entered, close]);
+  }, [isOpen, entered, close, isSelectingRegion]);
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -278,7 +282,7 @@ export function FeedbackWidget({
       return;
     }
     textareaRef.current?.focus();
-  }, [isOpen, entered, preview, inspecting, status]);
+  }, [isOpen, entered, preview, inspecting, status, isSelectingRegion]);
 
   const onOverlayTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -312,7 +316,7 @@ export function FeedbackWidget({
       ref={rootRef}
       className={classnames("fw-root", classNames?.root)}
       data-fw-scheme={hostScheme}
-      data-fw-open={overlayOpen ? "true" : "false"}
+      data-fw-open={keepTriggerHidden ? "true" : "false"}
       onPaste={onPaste}
     >
       <button
@@ -321,18 +325,18 @@ export function FeedbackWidget({
         className={classnames("fw-trigger", classNames?.trigger)}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        aria-hidden={overlayOpen || undefined}
-        tabIndex={overlayOpen ? -1 : undefined}
+        aria-hidden={keepTriggerHidden || undefined}
+        tabIndex={keepTriggerHidden ? -1 : undefined}
         onClick={() => (isOpen ? close() : open())}
       >
         <ChatIcon />
         {triggerLabel}
       </button>
 
-      {present ? (
+      {present && !isSelectingRegion ? (
         <div
           className={classnames("fw-overlay", classNames?.overlay)}
-          data-state={entered ? "open" : "closed"}
+          data-state={overlayOpen ? "open" : "closed"}
           onTransitionEnd={onOverlayTransitionEnd}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !previewId) close();
@@ -461,6 +465,18 @@ export function FeedbackWidget({
                     </div>
                   ))}
                   {screenshots.length < CLIENT_LIMITS.maxScreenshots ? (
+                    <>
+                    <button
+                      type="button"
+                      className={classnames("fw-gallery-add", classNames?.actions)}
+                      disabled={submitting || isSelectingRegion}
+                      onClick={() => void captureRegionScreenshot()}
+                    >
+                      <span className="fw-gallery-plus" aria-hidden="true">
+                        <CaptureIcon />
+                      </span>
+                      <span className="fw-gallery-add-label">Capture</span>
+                    </button>
                     <label className={classnames("fw-gallery-add", classNames?.actions)}>
                       <input
                         type="file"
@@ -481,10 +497,11 @@ export function FeedbackWidget({
                       </span>
                       <span className="fw-gallery-add-label">Upload</span>
                     </label>
+                    </>
                   ) : null}
                 </div>
                 <div className="fw-meta">
-                  <p className="fw-hint">Upload or paste a screenshot.</p>
+                  <p className="fw-hint">Capture a region, or upload / paste a screenshot.</p>
                   {showMessageCount ? (
                     <p className="fw-count" aria-live="polite">
                       {message.length}/{messageLimit}
@@ -611,7 +628,7 @@ export function FeedbackWidget({
       style={style}
       data-feedback-agent=""
       data-fw-scheme={hostScheme}
-      data-fw-open={overlayOpen ? "true" : "false"}
+      data-fw-open={keepTriggerHidden ? "true" : "false"}
     />
   );
 }
@@ -628,6 +645,17 @@ function resolveThanksBody(
     return "Thanks, we got it. This report was not sent to an agent.";
   }
   return thanksBody;
+}
+
+function CaptureIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M14 4h2.5A1.5 1.5 0 0 1 18 5.5V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M18 14v2.5a1.5 1.5 0 0 1-1.5 1.5H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 18H5.5A1.5 1.5 0 0 1 4 16.5V14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function ChatIcon() {

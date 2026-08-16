@@ -66,6 +66,16 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | undefined>
   });
 }
 
+function waitForPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame !== "function") {
+      resolve();
+      return;
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
 function asSubmitResult(body: unknown, fallbackId: string): FeedbackSubmitResult | null {
   if (!body || typeof body !== "object") return null;
   const value = body as Partial<FeedbackHandlerSuccess> & { error?: string };
@@ -97,6 +107,7 @@ export function FeedbackProvider({
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [result, setResult] = useState<FeedbackSubmitResult | null>(null);
   const [captureEnabled, setCaptureEnabledState] = useState(capture?.enabled ?? true);
+  const [isSelectingRegion, setSelectingRegion] = useState(false);
   screenshotsRef.current = screenshots;
 
   useEffect(() => {
@@ -219,6 +230,25 @@ export function FeedbackProvider({
     } catch {
       setError("Could not capture this page. Try uploading or pasting a screenshot.");
       setStatus("error");
+    }
+  }, [addScreenshot]);
+
+  const captureRegionScreenshot = useCallback(async () => {
+    setSelectingRegion(true);
+    setError(null);
+    await waitForPaint();
+    try {
+      const { selectPageRegion } = await import("./capture/region-overlay");
+      const selection = await selectPageRegion();
+      if (!selection) return;
+      const { captureRegionBlob } = await import("./capture/region");
+      const blob = await captureRegionBlob(selection.rect);
+      await addScreenshot(blob, `region-${new Date().toISOString()}.png`);
+    } catch {
+      setError("Could not capture this page. Try uploading or pasting a screenshot.");
+      setStatus("error");
+    } finally {
+      setSelectingRegion(false);
     }
   }, [addScreenshot]);
 
@@ -352,6 +382,8 @@ export function FeedbackProvider({
       addScreenshot,
       removeScreenshot,
       captureScreenshot,
+      captureRegionScreenshot,
+      isSelectingRegion,
       getDebugContext,
       getSession,
       status,
@@ -374,6 +406,8 @@ export function FeedbackProvider({
       addScreenshot,
       removeScreenshot,
       captureScreenshot,
+      captureRegionScreenshot,
+      isSelectingRegion,
       getDebugContext,
       getSession,
       status,

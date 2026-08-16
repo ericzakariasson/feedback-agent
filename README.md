@@ -143,7 +143,7 @@ Capture restarts if these options change.
 
 ### `<FeedbackWidget />`
 
-Finished UI: floating trigger, sheet/modal, textarea, screenshots (upload + paste), submit, thanks. On submit the client may also attach auto visuals the user never picked — see [Visuals](#visuals).
+Finished UI: floating trigger, sheet/modal, textarea, screenshots (region capture + upload + paste), submit, thanks. On submit the client may also attach auto visuals the user never picked — see [Visuals](#visuals).
 
 | Prop | Type | Default |
 | --- | --- | --- |
@@ -160,7 +160,7 @@ Finished UI: floating trigger, sheet/modal, textarea, screenshots (upload + past
 
 The UI lives in shadow DOM. Theme with CSS variables on the host — see [Styling](#styling). Rebuild with the hook if you need a different layout.
 
-Viewport capture is not a widget button. Call `captureScreenshot()` from the hook.
+The widget **Capture** button hides the sheet, lets the user drag a region on the live page, then reopens with that PNG in the gallery. Full-page `captureScreenshot()` stays hook-only.
 
 ### `useFeedback()`
 
@@ -170,7 +170,7 @@ Headless escape hatch. Must be under `FeedbackProvider`.
 const {
   isOpen, open, close,
   message, setMessage,
-  screenshots, addScreenshot, removeScreenshot, captureScreenshot,
+  screenshots, addScreenshot, removeScreenshot, captureScreenshot, captureRegionScreenshot,
   status, error, feedbackId, result,
   captureEnabled, setCaptureEnabled,
   submit, track, reset,
@@ -183,6 +183,8 @@ const {
 | `status` | `"idle" \| "submitting" \| "success" \| "error"` | |
 | `addScreenshot(file, name?)` | `(file: Blob, name?: string) => Promise<void>` | PNG / JPEG / GIF / WebP, ≤ 2 MB, max 4 user shots |
 | `captureScreenshot()` | `() => Promise<void>` | PNG of `document.documentElement`, excludes the widget. Adds to the gallery (user slot). |
+| `captureRegionScreenshot()` | `() => Promise<void>` | Hides the widget, drag-selects a page region, crops, and adds the PNG. Cancel is a no-op. |
+| `isSelectingRegion` | `boolean` | `true` while the region overlay is up |
 | `submit()` | `() => Promise<void>` | sets `error` if message is empty. May append `viewport.png` + `replay-collage.jpg` (not shown in the gallery). |
 | `track(name, props?)` | `(name: string, props?: Record<string, unknown>) => void` | custom breadcrumb (redacted) |
 | `reset()` | `() => void` | clears message + screenshots + status |
@@ -438,7 +440,7 @@ The cloud agent only sees images via Cursor `prompt.images` (max 5). Names are *
 
 | Image | When | What |
 | --- | --- | --- |
-| User screenshots | Upload, paste, or `captureScreenshot()` | Most faithful if the user attached any |
+| User screenshots | Capture region, upload, paste, or `captureScreenshot()` | Most faithful if the user attached any |
 | `viewport.png` | Submit with **zero** user screenshots | Live `document.documentElement` at submit (widget filtered out) |
 | `replay-collage.jpg` | Replay long enough (~≥200 ms) and a slot remains | 2×2 grid of replay frames (scales to 3×2 / 3×3 / 4×3). Best-effort; failures are ignored |
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Widget **Capture** control: drag a region on the page (move / resize, Enter or Capture, Escape cancels) and attach it instead of only uploading or pasting
+- `useFeedback().captureRegionScreenshot()` and `isSelectingRegion` for custom UIs
+
 ## 0.3.0 — 2026-08-06
 
 Preview cut that matches this repository. Previous npm `0.1.0` did not include the prompt hook or the hardening below.
