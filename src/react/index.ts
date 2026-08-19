@@ -6,6 +6,7 @@ export type { FeedbackDebugContext, FeedbackDebugScreenshot } from "./preview";
 export type {
   FeedbackProviderProps,
   FeedbackWidgetProps,
+  FeedbackWidgetStage,
   FeedbackWidgetClassNames,
   FeedbackCaptureConfig,
   FeedbackSubmitResult,

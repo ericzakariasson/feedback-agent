@@ -315,6 +315,7 @@ export function FeedbackProvider({
         credentials: "same-origin",
         headers: { "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
       });
       const body = (await response.json().catch(() => null)) as
         | (FeedbackHandlerSuccess & { error?: string })

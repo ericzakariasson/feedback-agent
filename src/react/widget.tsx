@@ -6,6 +6,7 @@ import {
   useState,
   type ChangeEvent,
   type ClipboardEvent,
+  type CSSProperties,
   type ReactNode,
   type TransitionEvent,
 } from "react";
@@ -16,10 +17,7 @@ import { useHostColorScheme } from "./host-scheme";
 import { useFeedback } from "./hook";
 import { ReplayPlayer } from "./replay-player";
 import { ensureWidgetStyles } from "./styles";
-import type { FeedbackSubmitResult, FeedbackWidgetProps } from "./types";
-
-const DEFAULT_THANKS_BODY =
-  "If the issue is clear, a coding agent will open a pull request.";
+import type { FeedbackWidgetProps } from "./types";
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -39,6 +37,21 @@ function focusables(root: HTMLElement | null): HTMLElement[] {
   });
 }
 
+function inertTree(node: HTMLElement, applied: HTMLElement[]) {
+  if (node.hasAttribute("data-fw-inert") || node.inert) return;
+  if (node.hasAttribute("data-fw-controls") || node.closest("[data-fw-controls]")) return;
+  if (node.querySelector("[data-fw-controls]")) {
+    for (const child of Array.from(node.children)) {
+      if (child instanceof HTMLElement) inertTree(child, applied);
+    }
+    return;
+  }
+  node.inert = true;
+  node.setAttribute("data-fw-inert", "");
+  node.setAttribute("aria-hidden", "true");
+  applied.push(node);
+}
+
 function inertOutside(el: HTMLElement): HTMLElement[] {
   const applied: HTMLElement[] = [];
   let node: HTMLElement | null = el;
@@ -47,12 +60,7 @@ function inertOutside(el: HTMLElement): HTMLElement[] {
     if (!parent) break;
     for (const sibling of Array.from(parent.children)) {
       if (sibling === node || !(sibling instanceof HTMLElement)) continue;
-      if (sibling.hasAttribute("data-fw-inert")) continue;
-      if (sibling.inert) continue;
-      sibling.inert = true;
-      sibling.setAttribute("data-fw-inert", "");
-      sibling.setAttribute("aria-hidden", "true");
-      applied.push(sibling);
+      inertTree(sibling, applied);
     }
     node = parent;
   }
@@ -72,31 +80,35 @@ export function FeedbackWidget({
   placeholder = "Describe a bug or idea. What did you expect to happen?",
   triggerLabel = "Feedback",
   submitLabel = "Send",
-  thanksTitle = "Thanks, we got it",
-  thanksBody = DEFAULT_THANKS_BODY,
+  thanksTitle = "Thank you",
+  thanksBody,
+  stage,
   debug,
   className,
   classNames,
   style,
 }: FeedbackWidgetProps) {
   const {
-    isOpen,
+    isOpen: liveOpen,
     open,
-    close,
-    message,
+    close: liveClose,
+    message: liveMessage,
     setMessage,
     screenshots,
     addScreenshot,
     removeScreenshot,
     getDebugContext,
     getSession,
-    status,
-    error,
-    feedbackId,
-    result,
+    status: liveStatus,
+    error: liveError,
     submit,
-    reset,
   } = useFeedback();
+  const staged = stage !== undefined;
+  const isOpen = stage?.open ?? liveOpen;
+  const status = stage?.status ?? liveStatus;
+  const message = stage?.message ?? liveMessage;
+  const error = staged ? (stage.error ?? null) : liveError;
+  const close = staged ? () => undefined : liveClose;
   const debugEnabled = shouldOfferDebug(debug);
   const hostScheme = useHostColorScheme();
   const titleId = useId();
@@ -274,7 +286,7 @@ export function FeedbackWidget({
       return;
     }
     if (status === "success") {
-      panelRef.current?.querySelector<HTMLElement>(".fw-submit")?.focus();
+      panelRef.current?.querySelector<HTMLElement>(".fw-thanks .fw-secondary")?.focus();
       return;
     }
     textareaRef.current?.focus();
@@ -323,7 +335,11 @@ export function FeedbackWidget({
         aria-expanded={isOpen}
         aria-hidden={overlayOpen || undefined}
         tabIndex={overlayOpen ? -1 : undefined}
-        onClick={() => (isOpen ? close() : open())}
+        onClick={() => {
+          if (staged) return;
+          if (isOpen) close();
+          else open();
+        }}
       >
         <ChatIcon />
         {triggerLabel}
@@ -491,11 +507,6 @@ export function FeedbackWidget({
                     </p>
                   ) : null}
                 </div>
-                {error ? (
-                  <p className={classnames("fw-error", classNames?.error)} role="alert">
-                    {error}
-                  </p>
-                ) : null}
                 <div className={classnames("fw-footer", debugEnabled && "fw-footer-split")}>
                   {debugEnabled ? (
                     <button
@@ -512,51 +523,49 @@ export function FeedbackWidget({
                       Inspect
                     </button>
                   ) : null}
+                  {error ? (
+                    <p className={classnames("fw-error", classNames?.error)} role="alert">
+                      {error}
+                    </p>
+                  ) : (
+                    <span className="fw-error-slot" aria-hidden="true" />
+                  )}
                   <button
                     type="button"
                     className={classnames("fw-submit", classNames?.submit)}
-                    disabled={!canSend}
+                    disabled={!canSend || submitting}
+                    aria-busy={submitting || undefined}
                     onClick={() => void submit()}
                   >
-                    {submitting ? "Sending…" : submitLabel}
+                    {submitting ? <Spinner /> : null}
+                    {submitLabel}
                   </button>
                 </div>
               </div>
               {status === "success" ? (
                 <div className={classnames("fw-thanks", classNames?.thanks)}>
-                  <div className={classnames("fw-header", classNames?.header)}>
+                  <button
+                    type="button"
+                    className={classnames("fw-close", classNames?.close)}
+                    aria-label="Close"
+                    onClick={close}
+                  >
+                    <CloseIcon />
+                  </button>
+                  <div className="fw-thanks-hero">
+                    <CheckIcon />
                     <h2 id={titleId} className={classnames("fw-title", classNames?.title)}>
                       {thanksTitle}
                     </h2>
-                    <button
-                      type="button"
-                      className={classnames("fw-close", classNames?.close)}
-                      aria-label="Close"
-                      onClick={close}
-                    >
-                      <CloseIcon />
-                    </button>
-                  </div>
-                  <div className="fw-thanks-copy">
-                    <p>{resolveThanksBody(thanksBody, result)}</p>
-                    <p className="fw-id">{feedbackId ? `Reference: ${feedbackId}` : "\u00a0"}</p>
+                    {thanksBody ? <p>{thanksBody}</p> : null}
                   </div>
                   <div className="fw-footer">
                     <button
                       type="button"
                       className={classnames("fw-secondary", classNames?.secondary)}
-                      onClick={() => {
-                        reset();
-                      }}
-                    >
-                      Send another
-                    </button>
-                    <button
-                      type="button"
-                      className={classnames("fw-submit", classNames?.submit)}
                       onClick={close}
                     >
-                      Done
+                      Close
                     </button>
                   </div>
                 </div>
@@ -616,18 +625,19 @@ export function FeedbackWidget({
   );
 }
 
-function resolveThanksBody(
-  thanksBody: string,
-  result: FeedbackSubmitResult | null,
-): string {
-  if (thanksBody !== DEFAULT_THANKS_BODY) return thanksBody;
-  if (result?.dryRun) {
-    return "We saved this report locally. No coding agent was launched.";
-  }
-  if (result && !result.dispatched && result.reason) {
-    return "Thanks, we got it. This report was not sent to an agent.";
-  }
-  return thanksBody;
+function Spinner() {
+  return (
+    <span className="fw-spinner-in" aria-hidden="true">
+      <span className="fw-spinner">
+        {Array.from({ length: 12 }, (_, i) => (
+          <span
+            key={i}
+            style={{ transform: `rotate(${i * 30}deg)`, ["--i"]: i } as CSSProperties}
+          />
+        ))}
+      </span>
+    </span>
+  );
 }
 
 function ChatIcon() {
@@ -637,6 +647,22 @@ function ChatIcon() {
         d="M3.25 2.75h9.5A1.25 1.25 0 0 1 14 4v6a1.25 1.25 0 0 1-1.25 1.25H8.1L5.2 13.85a.4.4 0 0 1-.7-.27V11.25H3.25A1.25 1.25 0 0 1 2 10V4A1.25 1.25 0 0 1 3.25 2.75Z"
         stroke="currentColor"
         strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="fw-thanks-check" width="36" height="36" viewBox="0 0 56 56" aria-hidden="true">
+      <circle cx="28" cy="28" r="28" fill="currentColor" />
+      <path
+        d="M17.5 29.2 24.2 35.8 38.5 21.2"
+        fill="none"
+        stroke="var(--fw-accent-contrast)"
+        strokeWidth="3.4"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>

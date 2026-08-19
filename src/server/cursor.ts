@@ -55,6 +55,7 @@ export async function dispatchCloudAgent(input: {
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   const json = (await response.json().catch(() => null)) as {

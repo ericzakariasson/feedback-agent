@@ -211,6 +211,29 @@ describe("createFeedbackHandler", () => {
     expect(onError).toHaveBeenCalledOnce();
   });
 
+  it("returns 202 before Cursor finishes when awaitDispatch is false", async () => {
+    let release!: (value: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const response = await post(handler({ awaitDispatch: false }), samplePayload());
+    const body = await response.json();
+    expect(response.status).toBe(202);
+    expect(body).toMatchObject({ ok: true, dispatched: true, feedbackId: "evt_123" });
+    expect(body.agentId).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    release(okAgent());
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+  });
+
   it("hides Cursor upstream errors from the client", async () => {
     globalThis.fetch = vi.fn(async () =>
       new Response(JSON.stringify({ error: { message: "invalid api key sk_live" } }), {

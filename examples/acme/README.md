@@ -8,8 +8,10 @@ The Northwind row (`Website refresh`) has a real inline-rename bug: type a new t
 # from the repo root
 cp .env.example .env   # if you do not already have one
 # set CURSOR_API_KEY, and confirm FEEDBACK_REPO_URL is this repo
-npm run example:acme
+npm run example
 ```
+
+Click the profile mark (E) in the top-right to show the stage panel: **Live**, **Closed**, **Compose**, **Sending**, **Thanks**, **Error**. Click it again to hide. Pick **Live** for a real Send.
 
 App: [http://127.0.0.1:5175](http://127.0.0.1:5175)
 
@@ -31,5 +33,5 @@ Each send opens a PR if the agent finds the bug. Skip dry-run takes; they will n
 ## Dry run
 
 ```bash
-FEEDBACK_DRY_RUN=true npm run example:acme
+FEEDBACK_DRY_RUN=true npm run example
 ```

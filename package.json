@@ -39,9 +39,7 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run build",
     "prepublishOnly": "npm run check",
-    "example": "npm run build && npm install --prefix examples/local && npm run start --prefix examples/local",
-    "example:next": "npm run build && npm install --prefix examples/next && npm run dev --prefix examples/next",
-    "example:acme": "npm run build && npm install --prefix examples/acme && npm run start --prefix examples/acme"
+    "example": "npm run build && npm install --prefix examples/acme && npm run start --prefix examples/acme"
   },
   "peerDependencies": {
     "react": ">=18",

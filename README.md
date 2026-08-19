@@ -6,7 +6,7 @@ In-app feedback that captures first-party session context and dispatches a [Curs
 
 Users never leave the product. Cursor API keys never leave your server. No PostHog, Sentry, LogRocket, or FullStory.
 
-Requires **Node ≥ 18.18** and **React ≥ 18** for the widget. Live example: `npm run example` → [http://127.0.0.1:5174](http://127.0.0.1:5174). Next.js App Router example: [`examples/next`](examples/next). Recording demo (Acme invoices + live Cursor agent): `npm run example:acme` → [http://127.0.0.1:5175](http://127.0.0.1:5175).
+Requires **Node ≥ 18.18** and **React ≥ 18** for the widget. Example: `npm run example` → [http://127.0.0.1:5175](http://127.0.0.1:5175) (Acme invoices + live Cursor agent).
 
 ```mermaid
 flowchart LR
@@ -45,7 +45,7 @@ export function Root({ children }: { children: React.ReactNode }) {
 
 ### Server
 
-**Next.js App Router** — see also [`examples/next`](examples/next). `app/api/feedback/route.ts`:
+**Next.js App Router** — `app/api/feedback/route.ts`:
 
 ```ts
 import { createFeedbackHandler } from "feedback-agent/server";
@@ -151,8 +151,9 @@ Finished UI: floating trigger, sheet/modal, textarea, screenshots (upload + past
 | `placeholder` | `string` | `"Describe a bug or idea. What did you expect to happen?"` |
 | `triggerLabel` | `string` | `"Feedback"` |
 | `submitLabel` | `string` | `"Send"` |
-| `thanksTitle` | `string` | `"Thanks, we got it"` |
-| `thanksBody` | `string` | `"If the issue is clear, a coding agent will open a pull request."` |
+| `thanksTitle` | `string` | `"Thank you"` |
+| `thanksBody` | `string` | omitted. Optional line under the checkmark |
+| `stage` | `FeedbackWidgetStage` | optional. Force open / status / copy for demos |
 | `debug` | `boolean` | on in development; always off in production. Pass `false` to hide |
 | `className` | `string` | host element class |
 | `style` | `CSSProperties` | host element style — set CSS variables here |
@@ -260,6 +261,7 @@ Web `Request` / `Response` only. Works on Next.js, Hono, Cloudflare Workers, and
 | `cursorApiBaseUrl` | `string` | default `https://api.cursor.com` |
 | `skipReviewerRequest` | `boolean` | forwarded to the Agents API |
 | `autoCreatePR` | `boolean` | default `true`. Set `false` on public widgets |
+| `awaitDispatch` | `boolean` | default `true`. `false` returns 202 after accept and dispatches in the background |
 | `trustProxy` | `false \| true \| "cf" \| "x-forwarded-for"` | default `false` (ignore forwarded IPs). Enable only behind a trusted proxy |
 | `store` | `FeedbackStore` | rate limit + dedupe. Default in-memory per process |
 | `onAccepted` | `(event) => void` | persist an audit row before Cursor dispatch |
@@ -375,7 +377,7 @@ type FeedbackHandlerSuccess = {
 | `500` | `enrich` / `prompt` threw, or prompt is empty |
 | `502` | Cursor API failed (generic `"Upstream dispatch failed"`) |
 
-`feedbackId` is the client `eventId`. Show it in the thanks state (the default widget does).
+`feedbackId` is the client `eventId`. The default widget no longer shows it; read it from `useFeedback()` if you want a custom receipt.
 
 Error body: `{ ok: false, error: string }`.
 
@@ -657,26 +659,25 @@ From this repo:
 ```bash
 npm install
 npm run build     # library
-npm run example   # demo app + local handler
+npm run example   # Acme demo + feedback handler
 ```
 
-`npm run example` serves the Vite app at `http://127.0.0.1:5174` with a Hono handler on `:8788` (`/api` proxied). Next.js: `npm run example:next` → `http://localhost:3005`. Acme recording demo: `npm run example:acme` → `http://127.0.0.1:5175` (live Cursor dispatch unless `FEEDBACK_DRY_RUN=true`). See [`examples/acme`](examples/acme).
+`npm run example` serves Acme at `http://127.0.0.1:5175` with a Hono handler on `:8789` (`/api` proxied). Live Cursor dispatch unless `FEEDBACK_DRY_RUN=true`. See [`examples/acme`](examples/acme). Click the profile mark in the top-right to stage widget states for recording.
 
 ```bash
 cp .env.example .env   # optional
 ```
 
-- `FEEDBACK_DRY_RUN` defaults to `true` — reports stay local (no `prompt.images` dispatch)
-- Set `FEEDBACK_DRY_RUN=false` and a real `CURSOR_API_KEY` + `FEEDBACK_REPO_URL` to dispatch agent + images
-- Click around, trigger the intentional settings error, then send feedback
-- Use **Inspect** to preview replay + payload; `examples/local/.last-feedback.json` lists screenshot names from the last POST
+- The Acme demo is **live** unless `FEEDBACK_DRY_RUN=true`
+- Set `CURSOR_API_KEY` + `FEEDBACK_REPO_URL` before recording
+- Rename **Website refresh**, report the revert, send feedback
 
 ```bash
 npm run check      # typecheck + unit tests + build
 npm test
 npm run typecheck
-npx tsc -p examples/local --noEmit
-npm run test:e2e   # Playwright against the local example (installs/uses Chromium)
+npx tsc -p examples/acme --noEmit
+npm run test:e2e   # Playwright against the Acme example
 ```
 
 ### Publishing

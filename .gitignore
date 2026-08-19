@@ -10,9 +10,6 @@ coverage
 .agents/
 .cursor/
 skills-lock.json
-examples/local/dist
-examples/local/.last-feedback.json
-examples/local/.last-replay-events.json
 examples/acme/.last-dispatch.json
 .collage-proof.jpg
 .collage-proof.json
@@ -21,7 +18,5 @@ examples/acme/.last-dispatch.json
 test-results/
 playwright-report/
 blob-report/
-examples/next/.next/
-examples/next/tsconfig.tsbuildinfo
 demo/out/
 

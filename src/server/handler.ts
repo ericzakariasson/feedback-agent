@@ -147,35 +147,56 @@ export function createFeedbackHandler(options: CreateFeedbackHandlerOptions) {
       return json(result, 202);
     }
 
-    try {
-      const dispatched = await dispatchCloudAgent({
-        apiKey: options.cursorApiKey!,
-        apiBaseUrl,
-        prompt: promptText,
-        screenshots: payload.screenshots,
-        repoUrl: options.repo.url,
-        repoRef: options.repo.ref,
-        model: options.model,
-        name: options.agentName ?? agentDisplayName(payload.eventId),
-        skipReviewerRequest: options.skipReviewerRequest,
-        autoCreatePR,
-      });
+    const dispatch = async () => {
+      try {
+        const dispatched = await dispatchCloudAgent({
+          apiKey: options.cursorApiKey!,
+          apiBaseUrl,
+          prompt: promptText,
+          screenshots: payload.screenshots,
+          repoUrl: options.repo.url,
+          repoRef: options.repo.ref,
+          model: options.model,
+          name: options.agentName ?? agentDisplayName(payload.eventId),
+          skipReviewerRequest: options.skipReviewerRequest,
+          autoCreatePR,
+        });
+        const result: FeedbackHandlerSuccess = {
+          ok: true,
+          dispatched: true,
+          feedbackId: payload.eventId,
+          agentId: dispatched.agentId,
+          agentUrl: dispatched.agentUrl,
+        };
+        emit("dispatched", {
+          feedbackId: payload.eventId,
+          agentId: dispatched.agentId,
+        });
+        await store.setDedupe(payload.eventId, result, limits.dedupeWindowMs);
+        return result;
+      } catch (error) {
+        options.onError?.(error, { stage: "dispatch" });
+        emit("upstream_failed", { feedbackId: payload.eventId });
+        throw error;
+      }
+    };
+
+    if (options.awaitDispatch === false) {
       const result: FeedbackHandlerSuccess = {
         ok: true,
         dispatched: true,
         feedbackId: payload.eventId,
-        agentId: dispatched.agentId,
-        agentUrl: dispatched.agentUrl,
       };
-      emit("dispatched", {
-        feedbackId: payload.eventId,
-        agentId: dispatched.agentId,
-      });
       await store.setDedupe(payload.eventId, result, limits.dedupeWindowMs);
+      void dispatch().catch(() => {
+        /* onError + upstream_failed already emitted */
+      });
       return json(result, 202);
-    } catch (error) {
-      options.onError?.(error, { stage: "dispatch" });
-      emit("upstream_failed", { feedbackId: payload.eventId });
+    }
+
+    try {
+      return json(await dispatch(), 202);
+    } catch {
       return json({ ok: false, error: "Upstream dispatch failed" }, 502);
     }
   };

@@ -34,6 +34,7 @@ const handler = createFeedbackHandler({
   cursorApiKey: apiKey || "dev-not-set",
   dryRun,
   autoCreatePR: true,
+  awaitDispatch: false,
   skipReviewerRequest: true,
   repo: { url: repoUrl, ref: repoRef },
   limits: { rateLimitMax: 20 },
@@ -49,10 +50,16 @@ const handler = createFeedbackHandler({
   onError(error, context) {
     console.error(`handler error (${context.stage})`, error);
   },
+  onEvent(name, data) {
+    if (name === "accepted" || name === "dispatched" || name === "upstream_failed") {
+      console.log(`event ${name}`, data);
+    }
+  },
 });
 
 const app = new Hono();
 app.post("/api/feedback", async (c) => {
+  console.log("POST /api/feedback");
   const response = await handler(c.req.raw);
   const copy = response.clone();
   try {

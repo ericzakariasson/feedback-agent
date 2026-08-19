@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import type { FeedbackStatus } from "./context";
 import type { FeedbackHandlerSuccess } from "../shared/types";
 
 export type FeedbackSubmitResult = FeedbackHandlerSuccess;
@@ -47,6 +48,13 @@ export interface FeedbackWidgetClassNames {
   thanks?: string
 }
 
+export interface FeedbackWidgetStage {
+  open?: boolean
+  status?: FeedbackStatus
+  message?: string
+  error?: string | null
+}
+
 export interface FeedbackWidgetProps {
   title?: string
   placeholder?: string
@@ -54,6 +62,8 @@ export interface FeedbackWidgetProps {
   submitLabel?: string
   thanksTitle?: string
   thanksBody?: string
+  /** Force open / status / copy for demos. Live widget when omitted. */
+  stage?: FeedbackWidgetStage
   /** Inspect UI. On in development by default; pass `false` to hide. Always off in production. */
   debug?: boolean
   className?: string

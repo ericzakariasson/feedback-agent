@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Default thanks view is a centered checkmark and “Thank you”. No agent copy, reference id, or follow-up buttons.
+- Example app is Acme only (`examples/acme`). Removed `examples/local` and `examples/next`.
+
 ## 0.3.0 — 2026-08-06
 
 Preview cut that matches this repository. Previous npm `0.1.0` did not include the prompt hook or the hardening below.

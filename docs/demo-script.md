@@ -19,7 +19,7 @@ Stuck in the product. Report it in place. Agent gets the session, opens a PR, ow
 
 ## How we make it
 
-`npm run example:acme` → [http://127.0.0.1:5175](http://127.0.0.1:5175). Real widget, real session capture, real `POST /api/feedback`, real Cursor cloud agent, real PR.
+`npm run example` → [http://127.0.0.1:5175](http://127.0.0.1:5175). Real widget, real session capture, real `POST /api/feedback`, real Cursor cloud agent, real PR. Click the profile mark (E) in the top-right to show the stage panel (Closed / Compose / Sending / Thanks / Error).
 
 The bug lives in `examples/acme/src/invoices/InvoiceRow.tsx`. Push that file before you record — the agent clones GitHub, not your working tree.
 
@@ -51,7 +51,7 @@ Timings live in `BEATS` in `demo/src/script.ts`.
 | --- | --- | --- |
 | `Arrive` | 0:00–0:04 | Invoice list cascades in, cursor drifts in. Establishing shot. |
 | `Confusion` | 0:04–0:11 | Hover the title → click → inline edit (camera pushes in on the row) → type `Website redesign` at full speed → pull back out → click empty space → snaps back to `Website refresh`. Hover it again, drift off. No second try. No crash toast. |
-| `Report` | 0:11–0:18.5 | Cursor to **Feedback**. Sheet in. Type full speed: `Renaming an invoice reverts when I click away.` Send. Thanks view is just a big "Thanks, we got it" + `Reference: evt_7f3a`. Cut. |
+| `Report` | 0:11–0:18.5 | Cursor to **Feedback**. Sheet in. Type full speed: `Renaming an invoice reverts when I click away.` Send. Thanks view is a big checkmark and “Thank you”. Cut. |
 | `Packet` | 0:18.5–0:26.5 | What the agent receives, as a loose floating paper stack: `MESSAGE · what they wrote`, `SCREENSHOT · viewport.png · 1440×900 · captured at send`, `ACTIVITY · breadcrumbs · last 5 min · redacted`, `REPLAY · replay-collage.jpg · 4 frames · last 5 min` (idle → rename → blur → reverted). In the last two seconds the agent console peeks up from the bottom edge — pulsing green dot, `cursor agent`, the `evt_7f3a` chip, `acme/app · fix/invoice-rename-revert` — and the cards drop into its header one by one. The console rises through the cut. |
 | `Agent` | 0:26.5–0:41.5 | Same console, now full frame. Log fills line by line (read feedback → replay summary → `rg -n "setTitle"` → open `InvoiceRow.tsx:39` → found it), the buggy `handleBlur` lines flag red, then flip to a green `persist()` diff. Checks line, then the final log line: `opened PR #184 · includes evt_7f3a` — and the console pushes in on it. |
 | `Owner` | 0:41.5–0:46.5 | Slack `#feedback`, zoomed ~2.4× on the bot message with a slow push-in: **Approve** / **Open PR**. Click Approve (sound). Buttons swap for `✓ Approved by Maya · 2:14 PM`. The beat ends on the approved state. |
@@ -165,6 +165,6 @@ Block Kit this is standing in for (Remotion paints it, we do not post it):
 
 ## Working with it
 
-- `npm run example:acme` — Acme on [http://127.0.0.1:5175](http://127.0.0.1:5175). Terminal prints the agent URL after Send.
+- `npm run example` — Acme on [http://127.0.0.1:5175](http://127.0.0.1:5175). Terminal prints the agent URL after Send.
 - Set `CURSOR_API_KEY` in `.env`. Commit and push `examples/acme` first.
 - Screen Studio records the live app, then the agent URL, then the PR.

@@ -73,6 +73,12 @@ export interface CreateFeedbackHandlerOptions {
   model?: string
   agentName?: string
   dryRun?: boolean
+  /**
+   * When false, return 202 as soon as the report is accepted and dispatch
+   * the Cursor agent in the background. Default true so the response can
+   * include `agentId` / `agentUrl`.
+   */
+  awaitDispatch?: boolean
   cursorApiBaseUrl?: string
   skipReviewerRequest?: boolean
   /** Default true. Set false for public widgets until a human triages. */
