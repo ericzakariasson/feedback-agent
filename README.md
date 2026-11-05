@@ -4,10 +4,57 @@ A Slack bot that turns bug reports into fixes. Someone mentions the bot with a b
 
 It is built on the [Agent SDK](https://www.npmjs.com/package/@grok/agent-sdk) (`@grok/agent-sdk@0.6.0`).
 
-```text
-Slack mention ──▶ bot triages ──▶ launch_fix_agent ──▶ Cursor cloud agent
-                                                       reproduce → fix → PR → demo.mp4
-Slack thread ◀── PR link + video ◀── fetch_demo_video ◀── "[cloud agent stopped]" wake
+## The Slack flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Reporter
+    participant S as Slack thread
+    participant B as Feedback bot
+    participant KV as Bot state (kv)
+    participant C as Cursor Cloud Agents API
+    participant A as Cloud agent
+    participant G as GitHub
+
+    R->>S: @Feedback Agent bug report
+    S->>B: app_mention starts a session for the thread
+
+    alt Feature request, question or chit-chat
+        B->>S: Short answer, nothing launched
+    else Too vague to reproduce
+        B->>S: One question for the missing detail
+        R->>S: Replies in the thread
+        S->>B: Same session continues
+    end
+
+    Note over B: Concrete bug: launch_fix_agent
+    B->>KV: Already launched for this thread?
+    alt A fix is already running
+        KV-->>B: Existing agent
+        B->>S: Link to the running agent
+    else First report in this thread
+        Note over B: Redact emails, tokens and keys<br/>Build the brief with a feedback id
+        B->>C: Launch on the target repo (autoCreatePR)
+        C-->>B: Agent id and URL, stop watch armed
+        C->>A: Start the agent with the brief
+        B->>KV: Record the launch for this thread
+        B->>S: A cloud agent is on it (agent link)
+
+        A->>A: Reproduce in the app, find the root cause, fix, verify
+        A->>A: Record demo.mp4 to /opt/cursor/artifacts
+        A->>G: Open a PR with the feedback id and the demo
+
+        loop Every minute, up to 24 hours
+            B->>C: Stop watch polls agent status
+        end
+        C-->>B: Agent stopped, wake the thread session
+        Note over B: [cloud agent stopped] message
+        B->>C: cloud__get (status, prUrl) and cloud__dump if needed
+        B->>C: fetch_demo_video lists artifacts, downloads the newest video
+        B->>S: slack__post-file uploads the demo video
+        B->>S: slack__post-update posts the root cause, fix and PR link
+    end
 ```
 
 ## How it works
