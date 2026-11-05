@@ -1,30 +1,88 @@
 {
   "name": "feedback-agent",
-  "version": "1.0.0",
-  "private": true,
-  "description": "A Slack bot that turns bug feedback into a Cursor cloud agent run: reproduce, fix, open a PR, record a demo, reply in the thread.",
+  "version": "0.3.0",
+  "description": "In-app feedback with first-party session capture and Cursor cloud agent dispatch.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ericzakariasson/feedback-agent.git"
   },
+  "bugs": {
+    "url": "https://github.com/ericzakariasson/feedback-agent/issues"
+  },
+  "homepage": "https://github.com/ericzakariasson/feedback-agent#readme",
   "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
+    }
+  },
   "scripts": {
-    "dev": "agent-sdk dev --dir .",
-    "validate": "agent-sdk validate --dir .",
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "eval": "agent-sdk eval --dir .",
-    "check": "npm run validate && npm run typecheck && agent-sdk eval --dir . --list"
+    "check": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "npm run check",
+    "example": "npm run build && npm install --prefix examples/local && npm run start --prefix examples/local",
+    "example:next": "npm run build && npm install --prefix examples/next && npm run dev --prefix examples/next",
+    "example:acme": "npm run build && npm install --prefix examples/acme && npm run start --prefix examples/acme"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "dependencies": {
-    "@grok/agent-sdk": "0.6.0",
-    "zod": "^4.6.5"
+    "@rrweb/record": "^2.1.1",
+    "html-to-image": "^1.11.13",
+    "rrweb": "^2.1.1"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "typescript": "6.0.3"
+    "@playwright/test": "^1.54.2",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "happy-dom": "^18.0.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   },
   "engines": {
-    "node": ">=22.13"
-  }
+    "node": ">=18.18"
+  },
+  "keywords": [
+    "feedback",
+    "agent",
+    "session-replay",
+    "cursor",
+    "react",
+    "hono"
+  ]
 }

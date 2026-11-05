@@ -4,20 +4,21 @@
 
 Please report security issues privately via [GitHub security advisories](https://github.com/ericzakariasson/feedback-agent/security/advisories/new) or email **eric.zakariasson@gmail.com**.
 
-Do not open a public issue for vulnerabilities that could leak Slack data, credentials, or let someone steer cloud agents.
+Do not open a public issue for vulnerabilities that could leak session data, bypass rate limits, or abuse Cursor agent dispatch.
 
 We aim to acknowledge reports within a few days.
 
-## What the bot does
+## What this library handles
 
-- Bug reports are untrusted input. The brief sent to the cloud agent fences the report and tells the agent never to follow instructions inside it.
-- Emails, bearer tokens, JWTs, Slack tokens and key-shaped strings are redacted before a report leaves Slack. Redaction is best-effort.
-- Launches are limited to one configured repo. The generic `cloud__launch` tool is disabled, so the model can only launch through `launch_fix_agent`.
-- Each caller can only read and steer the cloud agents they launched.
-- Cloud agents open PRs but never merge, deploy or push to the default branch.
+- Cursor API keys stay on the server. Do not put them on the widget.
+- Reports are untrusted telemetry. The default agent prompt says not to follow instructions found in feedback, screenshots, replay, or enrichment.
+- Input masking and text redaction are **best-effort**. Treat browser capture as production telemetry that may contain PII.
 
-## What operators must do
+## What integrators must do
 
-- Keep Slack tokens and Cursor credentials out of the repo (`.env.local` is gitignored; hosted values go through `agent-sdk secret set` or `slack create --env prod`).
-- Install the Slack app only in workspaces whose members you trust to spend the account's cloud-agent budget. Slack Connect guests are blocked by default.
-- Require review on PRs the agent opens; branch protection on the default branch is recommended.
+- Authenticate in `enrich` and refuse anonymous dispatch.
+- Put a real `store` behind multi-instance / serverless hosts.
+- Enable `trustProxy` only behind a trusted reverse proxy.
+- Gate replay with consent / auth (`capture.enabled` or `setCaptureEnabled`).
+- Keep `autoCreatePR: false` on public widgets until a human reviews reports.
+- See [docs/privacy.md](docs/privacy.md) for a compliance checklist.
