@@ -27,8 +27,7 @@ export function InvoiceRow({ invoice }: { invoice: Invoice }) {
 
   function handleBlur() {
     setEditing(false);
-    // reset to the server value
-    setTitle(invoice.title);
+    setTitle(draft.trim() || title);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
