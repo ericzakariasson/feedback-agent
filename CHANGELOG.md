@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0 — 2026-11-04
+
+Rewritten as an Agent SDK Slack bot. The React widget and `createFeedbackHandler` server library are gone; the npm package is no longer published from this repo.
+
+### Added
+
+- Slack bot (`bot/`) on `@grok/agent-sdk@0.6.0`: native Slack channel, `slack-communication` tools and the `cursor-cloud-agents` extension
+- `launch_fix_agent`: one cloud agent per Slack thread that reproduces the bug, fixes it, opens a PR and records a demo video
+- `fetch_demo_video`: downloads the agent's demo video from the Cursor artifacts API so the bot posts it in the thread
+- Triage evals under `evals/`
+- `demo-app/` (formerly `examples/acme`) as the default target, with `AGENTS.md` for cloud agents
+
+### Kept
+
+- Untrusted-input hard rules, redaction of emails and credentials, one run per report, feedback id in the PR
+
+
 ## 0.3.0 — 2026-08-06
 
 Preview cut that matches this repository. Previous npm `0.1.0` did not include the prompt hook or the hardening below.

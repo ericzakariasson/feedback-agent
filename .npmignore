@@ -1,9 +1,0 @@
-src
-test
-examples
-tsconfig.json
-tsup.config.ts
-vitest.config.ts
-.env
-.env.*
-!dist/**
